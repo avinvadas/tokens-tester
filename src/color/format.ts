@@ -36,7 +36,11 @@ export const ACHROMATIC = 0.001;
 /** Analyze a DTCG color value, or undefined if it isn't a valid one. */
 export function colorInfo(v: unknown): ColorInfo | undefined {
   const c = toColorJs(v);
-  if (!c) return undefined;
+  return c ? infoFrom(c) : undefined;
+}
+
+/** Analyze a Color.js color. */
+export function infoFrom(c: PlainColorObject): ColorInfo {
   const ok = to(c, 'oklch');
   const [l, ch, h] = ok.coords.map(Number) as [number, number, number];
   const alpha = Number(ok.alpha ?? 1);

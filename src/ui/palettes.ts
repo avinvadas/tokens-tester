@@ -8,6 +8,7 @@ import { contrastOf, type ContrastView } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
 import { contrastControls, paletteContrast, parityPanel, swatchContrast } from './contrast';
+import { openCurveEditor } from './curve-editor';
 import { h, masked, plural } from './dom';
 
 const DIRECTION = { 'light-to-dark': 'light → dark', 'dark-to-light': 'dark → light', flat: 'no lightness order' } as const;
@@ -111,6 +112,7 @@ export class TTPalettes extends HTMLElement {
         { class: 'palette-head' },
         masked(h('h3', null, p.name)),
         h('span', { class: 'meta' }, `${plural(p.swatches.length, 'step')} · ${DIRECTION[p.direction]}`),
+        h('button', { type: 'button', class: 'small edit-curves', onclick: () => openCurveEditor(p.id) }, 'Edit with curves'),
         h('button', { type: 'button', class: 'ghost small', onclick: () => setPaletteIncluded(p.id, false) }, 'Not a base palette'),
       ),
       p.flags.length ? masked(h('ul', { class: 'flags' }, p.flags.map((f) => h('li', { class: f.severity }, f.message)))) : null,

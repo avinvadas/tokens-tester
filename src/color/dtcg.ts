@@ -116,3 +116,35 @@ export function describeColor(v: DtcgColor): string {
   const alpha = typeof v.alpha === 'number' && v.alpha !== 1 ? ` / ${v.alpha}` : '';
   return `${v.colorSpace}(${v.components.join(' ')}${alpha})`;
 }
+
+/** Spaces whose gamut is sRGB: a color outside sRGB can't be written in them. */
+const SRGB_BOUND = new Set(['srgb', 'srgb-linear', 'hsl', 'hwb']);
+
+/**
+ * Write a color back as a DTCG value in the space the token already used.
+ * A color outside sRGB in an sRGB-bound space moves to display-p3. `hex` is
+ * included (recomputed) when the original value had one.
+ */
+export function fromColorJs(c: PlainColorObject, like: Partial<DtcgColor> | undefined, digits = 4): DtcgColor {
+  let space = typeof like?.colorSpace === 'string' && DTCG_SPACES[like.colorSpace] ? like.colorSpace : 'oklch';
+  const srgb = to(c, 'srgb');
+  const inSrgb = srgb.coords.every((x) => Number.isNaN(x) || (x >= -0.0005 && x <= 1.0005));
+  if (SRGB_BOUND.has(space) && !inSrgb) space = 'display-p3';
+  const inSpace = to(c, DTCG_SPACES[space]!);
+  const out: DtcgColor = {
+    colorSpace: space,
+    components: inSpace.coords.map((x, i) => {
+      if (Number.isNaN(x)) return 'none';
+      // Clamp rounding noise at the edges of bounded spaces.
+      const v = space === 'srgb' || space === 'display-p3' ? Math.min(1, Math.max(0, x)) : x;
+      return round(i === 2 && (space === 'oklch' || space === 'lch' || space === 'hsl' || space === 'hwb') ? ((v % 360) + 360) % 360 : v, digits);
+    }),
+  };
+  const alpha = Number(c.alpha ?? 1);
+  if (alpha < 1) out.alpha = round(alpha, digits);
+  if (like?.hex !== undefined) {
+    const hex = toHex(out);
+    if (hex) out.hex = hex;
+  }
+  return out;
+}

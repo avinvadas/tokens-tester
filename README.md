@@ -11,6 +11,7 @@ A one-page, browser-only evaluator for design-token files. Load your tokens, che
 - **Convert legacy formats** (optional): Tokens Studio and Style Dictionary v3 files are converted to DTCG on load, and can be downloaded as DTCG or back in their original format.
 - **Show base colors** (tokens with their own color value) as ordered palettes, with checks on each scale: lightness inversions, near-duplicate steps, hue drift, uneven lightness gaps, missing steps, and colors outside the target gamut (sRGB or Display P3). Colors can be shown as OKLCH, hex or RGB.
 - **Check contrast** against the compliance targets you choose (WCAG 2.2 AA, AAA, APCA): every base color is scored as text on a light end and a dark end (by default your own lightest and darkest neutral), with the passing range per scale, the step distance at which any two colors of a scale pass, and where palettes that share step names start passing at different steps.
+- **Edit scales with curves**: open any palette in the curve editor to reshape its lightness, chroma and hue across the steps around an anchor color you set. Presets include linear and eased lightness, a chroma bell, hue shifts, and contrast-targeted lightness (solve steps so they just pass a level against your light or dark end). Colors are mapped into the target gamut, the result is previewed with its contrast, scale checks and the semantic tokens it affects in every theme, and the same curves can be applied to other palettes. Applying is one undoable step, and values keep each token's color space.
 - **Check themes separately**: light/dark (or brand) variants are detected from file names (`semantic.light.json` + `semantic.dark.json`), Tokens Studio `$themes`, or per-mode values in `$extensions`, and can be edited in a files × themes matrix. Each theme is checked on its own over the shared files; issues found in only some themes are tagged with them.
 - **Export** without noise: a file with no edits downloads byte-for-byte as it was loaded, and edits change only the lines they touch.
 
@@ -18,7 +19,7 @@ All color math uses OKLCH, through [Color.js](https://colorjs.io/).
 
 ### Coming next
 
-A curve editor for batch-editing scales around an anchor color, and color-vision-deficiency checks on semantic foreground/background pairs with suggested alternative aliases. See [PLAN.md](PLAN.md).
+Color-vision-deficiency checks on semantic foreground/background pairs with suggested alternative aliases. See [PLAN.md](PLAN.md).
 
 ## Privacy
 
@@ -52,6 +53,7 @@ src/legacy/    Tokens Studio / Style Dictionary v3 ↔ DTCG conversion
 src/color/     Color.js bridge: DTCG colors, OKLCH analysis, display formats, gamut mapping
 src/palette/   tier-1 detection, palettes and step order, scale checks
 src/contrast/  WCAG 2.2 / APCA levels, pass ranges, step distance, cross-palette parity
+src/curves/    curve model: monotone splines, anchor, presets, gamut fitting, contrast-targeted lightness, batch mapping
 src/themes/    theme detection (file names, Tokens Studio $themes, $extensions modes) and the all-themes view
 src/state/     store, settings, undoable edits and fixes
 src/io/        loading (file, drop, URL) and export

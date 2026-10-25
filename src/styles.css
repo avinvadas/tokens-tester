@@ -257,7 +257,7 @@ tt-settings { display: block; margin-top: 14px; padding-top: 14px; border-top: 1
 .palette { padding: 12px 0 16px; border-top: 1px solid var(--border); }
 .palette-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .palette-head h3 { margin: 0; font-size: 0.95rem; font-family: var(--mono); }
-.palette-head button { margin-left: auto; }
+.palette-head .edit-curves { margin-left: auto; }
 button.small { font-size: 0.78rem; padding: 3px 9px; }
 
 .flags { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
@@ -337,3 +337,51 @@ table.theme-matrix tfoot td.good { color: var(--ok); }
 .add-theme { margin-top: 10px; }
 .theme-tag { display: inline-block; font-size: 0.72rem; font-weight: 600; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0 8px; margin-right: 6px; }
 table.theme-matrix td.file-name { min-width: 14ch; overflow-wrap: anywhere; font-weight: 600; }
+
+/* Curve editor */
+
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+dialog.curve-editor {
+  width: min(1100px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: auto;
+}
+dialog.curve-editor::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog.curve-editor > * { margin-left: 18px; margin-right: 18px; }
+dialog.curve-editor section { margin-top: 16px; }
+dialog.curve-editor h3 { margin: 0 0 6px; font-size: 0.92rem; }
+.ce-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); padding: 14px 0 8px; z-index: 1; border-bottom: 1px solid var(--border); }
+.ce-head h2 { margin: 0; }
+dialog.curve-editor .meta { color: var(--muted); font-size: 0.84rem; margin: 6px 0; }
+.ce-anchor { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin-top: 8px; font-size: 0.88rem; }
+.ce-anchor input[type='number'] { width: 80px; }
+.ce-anchor-swatch { display: inline-block; width: 44px; }
+.ce-anchor-swatch .swatch-canvas { height: 28px; }
+.ce-curve-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.ce-curve-head h3 { margin: 0; min-width: 6em; }
+.ce-inline { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.85rem; }
+.ce-inline input[type='number'] { width: 64px; }
+.ce-contrast summary { cursor: pointer; font-size: 0.85rem; color: var(--accent); }
+.ce-contrast[open] { flex-basis: 100%; }
+.curve-box { position: relative; }
+.curve-canvas { display: block; width: 100%; height: 170px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); touch-action: none; }
+.curve-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.curve-readout { position: absolute; top: 6px; right: 10px; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+.ce-notes:empty { display: none; }
+.ce-strip { display: grid; grid-template-columns: 54px 1fr; gap: 6px; align-items: start; margin-bottom: 6px; }
+.ce-strip-label { font-size: 0.78rem; color: var(--muted); padding-top: 18px; }
+.ce-strip .swatch-canvas { height: 40px; }
+dialog.curve-editor .ok { color: var(--ok); font-size: 0.85rem; margin: 4px 0; }
+.ce-batch-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ce-batch-list > li > label { font-weight: 600; font-size: 0.88rem; }
+.ce-impact-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.ce-impact-list li { display: flex; align-items: center; gap: 6px; }
+.mini { display: inline-block; width: 22px; }
+.mini .swatch-canvas { height: 16px; border-radius: 4px; }
+.ce-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: sticky; bottom: 0; background: var(--surface); padding: 12px 0 14px; margin-top: 16px; border-top: 1px solid var(--border); }
+.ce-foot .spacer { flex: 1; }
