@@ -1,0 +1,19 @@
+{
+  "color": {
+    "$type": "color",
+    "base": { "$value": { "colorSpace": "srgb", "components": [0.2, 0.4, 0.6] } },
+    "typo": { "$value": "{color.bsae}" },
+    "loop-a": { "$value": "{color.loop-b}" },
+    "loop-b": { "$value": "{color.loop-a}" },
+    "downstream": { "$value": "{color.loop-a}" },
+    "to-group": { "$value": "{color}" },
+    "bad-ref": { "$value": { "$ref": "#/color/nope/$value" } },
+    "stray": "#ff0000",
+    "dup": { "$value": { "colorSpace": "srgb", "components": [0, 0, 0] } },
+    "dup": { "$value": { "colorSpace": "srgb", "components": [1, 1, 1] } }
+  },
+  "size": {
+    "$type": "dimension",
+    "wrong": { "$value": "{color.base}" }
+  }
+}

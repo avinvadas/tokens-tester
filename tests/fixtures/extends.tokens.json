@@ -1,0 +1,13 @@
+{
+  "button": {
+    "$type": "color",
+    "bg": { "$value": { "colorSpace": "srgb", "components": [0, 0, 1] } },
+    "fg": { "$value": { "colorSpace": "srgb", "components": [1, 1, 1] } }
+  },
+  "button-danger": {
+    "$extends": "{button}",
+    "bg": { "$value": { "colorSpace": "srgb", "components": [1, 0, 0] }, "$type": "color" }
+  },
+  "cyc-a": { "$extends": "{cyc-b}" },
+  "cyc-b": { "$extends": "{cyc-a}" }
+}

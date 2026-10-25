@@ -1,0 +1,13 @@
+{
+  "color": {
+    "base": {
+      "red": { "value": "#ff0000", "comment": "Pure red" },
+      "gray": { "value": "#777", "attributes": { "category": "color" } }
+    },
+    "font": { "value": "{color.base.red.value}" }
+  },
+  "size": {
+    "padding": { "value": "16px", "type": "size" },
+    "relative": { "value": "1.2em", "type": "dimension" }
+  }
+}

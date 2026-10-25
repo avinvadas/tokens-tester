@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <!-- tt:csp -->
+    <title>Tokens Tester</title>
+    <meta name="description" content="Check design-token files for DTCG compliance, contrast and color-vision accessibility. Runs entirely in your browser.">
+  </head>
+  <body>
+    <header class="site">
+      <div class="brand">
+        <h1>Tokens Tester</h1>
+        <p>Check design-token files for DTCG compliance, contrast and color-vision accessibility.</p>
+      </div>
+      <details class="privacy">
+        <summary><span class="dot" aria-hidden="true"></span> Runs in your browser. Your tokens never leave it.</summary>
+        <div class="privacy-body">
+          <p>Files are read and processed on this page only. Their names, values and structure are never uploaded, stored or sent anywhere.</p>
+          <p>The only network request this page makes is to a URL you type in, and only when you click Load.</p>
+          <p><strong>Check it yourself:</strong> open your browser's developer tools, go to the Network tab, and load a file. Nothing is sent. You can also turn off Wi-Fi after the page loads; everything keeps working.</p>
+          <p>For full isolation, clone the repository and run the strict build (<code>npm run build:strict</code>), which works offline from a local file.</p>
+        </div>
+      </details>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="load-h">
+        <h2 id="load-h" class="visually-hidden">Load tokens</h2>
+        <tt-loader></tt-loader>
+        <tt-settings></tt-settings>
+      </section>
+      <section class="panel needs-files"><tt-files></tt-files></section>
+      <section class="panel needs-files"><tt-issues></tt-issues></section>
+      <section class="panel needs-files"><tt-palettes></tt-palettes></section>
+      <section class="panel needs-files"><tt-tokens></tt-tokens></section>
+    </main>
+
+    <footer class="site"><span id="build-label"></span></footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

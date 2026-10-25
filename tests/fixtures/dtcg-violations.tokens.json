@@ -1,0 +1,35 @@
+{
+  "$schema": "https://www.designtokens.org/schemas/2025.10/format.json",
+  "color": {
+    "$type": "color",
+    "hex-string": { "$value": "#ff8800" },
+    "bytes": { "$value": { "colorSpace": "srgb", "components": [255, 136, 0] } },
+    "bad-space": { "$value": { "colorSpace": "sRGB", "components": [1, 0.5, 0] } },
+    "stale-hex": { "$value": { "colorSpace": "srgb", "components": [0, 0, 1], "hex": "#ff0000" } },
+    "oklch-pct": { "$value": { "colorSpace": "oklch", "components": [62, 0.19, 260] } },
+    "not-a-color": { "$value": "banana" },
+    "typo": { "$valeu": { "colorSpace": "srgb", "components": [0, 0, 0] } },
+    "half-legacy": { "value": "#00ff00" },
+    "with.dot": { "$value": { "colorSpace": "srgb", "components": [0, 0, 0] } },
+    "legacy-desc": { "$value": { "colorSpace": "srgb", "components": [1, 1, 1] }, "description": "White" },
+    "old": { "$value": { "colorSpace": "srgb", "components": [0.5, 0.5, 0.5] }, "$deprecated": "Use color.new" },
+    "uses-old": { "$value": "{color.old}" },
+    "embedded": { "$value": "1px solid {color.old}" }
+  },
+  "size": {
+    "$type": "dimension",
+    "string": { "$value": "16px" },
+    "em": { "$value": "2em" },
+    "fine": { "$value": { "value": 4, "unit": "px" } }
+  },
+  "misc": {
+    "untyped": { "$value": { "value": 200, "unit": "ms" } },
+    "sizing": { "$type": "sizing", "$value": { "value": 8, "unit": "px" } },
+    "weight": { "$type": "fontWeight", "$value": "Bold" },
+    "number-desc": { "$type": "number", "$value": 1, "$description": 42 },
+    "ext": { "$type": "number", "$value": 2, "$extensions": { "mytool": { "a": 1 } } },
+    "shadow": { "$type": "shadow", "$value": { "x": "0", "y": "2", "blur": "4", "spread": "0", "color": "#00000033" } },
+    "typography": { "$type": "typography", "$value": { "fontFamily": "Inter", "fontSize": "16px", "fontWeight": 400 } },
+    "empty": {}
+  }
+}

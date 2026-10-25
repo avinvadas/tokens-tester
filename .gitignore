@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-strict/
+*.log
+.DS_Store
+.claude/
+# Local token files used for manual testing; may contain real design-system data.
+test-token-files/

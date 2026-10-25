@@ -1,0 +1,6 @@
+{
+  "global": {
+    "blue": { "value": "#1e40af", "type": "color" },
+    "space": { "value": "4", "type": "spacing" }
+  }
+}

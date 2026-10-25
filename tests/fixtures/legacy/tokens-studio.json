@@ -1,0 +1,37 @@
+{
+  "global": {
+    "blue": {
+      "500": { "value": "#2563eb", "type": "color", "description": "Brand blue" },
+      "700": { "value": "rgba(29, 78, 216, 0.9)", "type": "color" }
+    },
+    "space": {
+      "sm": { "value": "4", "type": "spacing" },
+      "md": { "value": "{space.sm} * 2", "type": "spacing" },
+      "lg": { "value": "1.5rem", "type": "sizing" }
+    },
+    "radius": { "value": "8px", "type": "borderRadius" },
+    "opacity": { "value": "50%", "type": "opacity" },
+    "weight": { "value": "Semi Bold", "type": "fontWeights" },
+    "family": { "value": "Inter, sans-serif", "type": "fontFamilies" },
+    "body": {
+      "value": {
+        "fontFamily": "{family}",
+        "fontWeight": "{weight}",
+        "fontSize": "16",
+        "lineHeight": "150%",
+        "letterSpacing": "0%"
+      },
+      "type": "typography"
+    },
+    "card": {
+      "value": { "x": "0", "y": "2", "blur": "8", "spread": "0", "color": "rgba(0,0,0,0.12)", "type": "dropShadow" },
+      "type": "boxShadow"
+    },
+    "case": { "value": "uppercase", "type": "textCase" }
+  },
+  "light": {
+    "bg": { "value": "$blue.500", "type": "color" }
+  },
+  "$themes": [],
+  "$metadata": { "tokenSetOrder": ["global", "light"] }
+}

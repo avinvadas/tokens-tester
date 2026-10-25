@@ -1,0 +1,45 @@
+{
+	"color": {
+		"bg": {
+			"default": {
+				"$value": "{color.neutral.0}"
+			},
+			"danger": {
+				"$value": "{color.red.100}"
+			}
+		},
+		"fg": {
+			"default": {
+				"$value": "{color.neutral.1000}"
+			},
+			"danger": {
+				"$value": "{color.red.700}"
+			},
+			"link": {
+				"$value": {
+					"$ref": "#/color/accent/$root/$value"
+				}
+			}
+		},
+		"accent": {
+			"$root": {
+				"$value": "{color.blue.500}"
+			},
+			"strong": {
+				"$value": "{color.blue.700}"
+			}
+		}
+	},
+	"shadow": {
+		"card": {
+			"$type": "shadow",
+			"$value": {
+				"color": "{color.blue.900}",
+				"offsetX": { "$ref": "primitives.tokens.json#/space/sm/$value" },
+				"offsetY": "{space.sm}",
+				"blur": "{space.md}",
+				"spread": { "value": 0, "unit": "px" }
+			}
+		}
+	}
+}
