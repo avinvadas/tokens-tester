@@ -1,10 +1,13 @@
 import { formatColor, lch } from '../color/format';
+import type { PaletteContrast } from '../contrast/analyze';
 import type { Palette, PaletteSet, Swatch } from '../palette/detect';
 import type { ScaleFlag } from '../palette/checks';
 import type { Settings } from '../model/types';
 import { setPaletteIncluded, store, updateSettings, type AppState } from '../state/app';
+import { contrastOf, type ContrastView } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
+import { contrastControls, paletteContrast, parityPanel, swatchContrast } from './contrast';
 import { h, masked, plural } from './dom';
 
 const DIRECTION = { 'light-to-dark': 'light → dark', 'dark-to-light': 'dark → light', flat: 'no lightness order' } as const;
@@ -14,7 +17,7 @@ const FORMATS: { value: Settings['colorFormat']; label: string }[] = [
   { value: 'rgb', label: 'RGB' },
 ];
 
-type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings'>;
+type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds'>;
 
 /** Tier-1 colors as ordered palettes, with scale checks and gamut flags. */
 export class TTPalettes extends HTMLElement {
@@ -25,7 +28,7 @@ export class TTPalettes extends HTMLElement {
     this.unsub = store.select(
       (s): View => s,
       (v) => this.render(v),
-      (a, b) => a.model === b.model && a.paletteOverrides === b.paletteOverrides && a.settings === b.settings,
+      (a, b) => a.model === b.model && a.paletteOverrides === b.paletteOverrides && a.settings === b.settings && a.contrastEnds === b.contrastEnds,
     );
     this.resize.observe(this);
   }
@@ -37,6 +40,7 @@ export class TTPalettes extends HTMLElement {
 
   private render(v: View) {
     const set = palettesOf(store.get());
+    const contrast = contrastOf(store.get());
     const { settings } = v;
     const shown = displayGamut(settings.gamut);
     const included = set.palettes.filter((p) => p.included);
@@ -50,6 +54,7 @@ export class TTPalettes extends HTMLElement {
         h('h2', null, 'Base colors ', h('span', { class: 'n' }, total ? `${plural(included.length, 'palette')} · ${plural(total, 'color')}` : '')),
         h('div', { class: 'controls' }, this.formatToggle(settings.colorFormat), this.gamutSelect(settings.gamut)),
       ),
+      total ? contrastControls(settings, set, contrast) : '',
       h(
         'div',
         { class: 'palettes-body' },
@@ -57,7 +62,8 @@ export class TTPalettes extends HTMLElement {
           ? h('p', { class: 'note' }, "This screen can't show Display P3, so P3 colors are drawn mapped to sRGB and marked with a corner triangle.")
           : null,
         total === 0 ? h('p', { class: 'empty' }, 'No base colors found. Base colors are color tokens with their own value rather than a reference.') : null,
-        included.map((p) => this.palette(p, settings, shown)),
+        included.map((p) => this.palette(p, settings, shown, contrast)),
+        parityPanel(contrast, included),
         set.loose.length ? this.loose(set, settings, shown) : null,
         excluded.length ? this.excluded(excluded) : null,
       ),
@@ -90,7 +96,8 @@ export class TTPalettes extends HTMLElement {
     return select;
   }
 
-  private palette(p: Palette, settings: Settings, shown: Settings['gamut']) {
+  private palette(p: Palette, settings: Settings, shown: Settings['gamut'], contrast: ContrastView) {
+    const result = contrast.results.get(p.id);
     const flagged = new Map<string, ScaleFlag['severity']>();
     for (const f of p.flags) for (const s of f.steps) if (flagged.get(s) !== 'warning') flagged.set(s, f.severity);
     return h(
@@ -104,11 +111,19 @@ export class TTPalettes extends HTMLElement {
         h('button', { type: 'button', class: 'ghost small', onclick: () => setPaletteIncluded(p.id, false) }, 'Not a base palette'),
       ),
       p.flags.length ? masked(h('ul', { class: 'flags' }, p.flags.map((f) => h('li', { class: f.severity }, f.message)))) : null,
-      this.strip(p.swatches, settings, shown, flagged),
+      this.strip(p.swatches, settings, shown, flagged, result, contrast),
+      paletteContrast(p, result, contrast),
     );
   }
 
-  private strip(swatches: Swatch[], settings: Settings, shown: Settings['gamut'], flagged = new Map<string, ScaleFlag['severity']>()) {
+  private strip(
+    swatches: Swatch[],
+    settings: Settings,
+    shown: Settings['gamut'],
+    flagged = new Map<string, ScaleFlag['severity']>(),
+    result?: PaletteContrast,
+    contrast?: ContrastView,
+  ) {
     return h(
       'div',
       { class: 'swatches', style: `--n: ${swatches.length}` },
@@ -127,6 +142,7 @@ export class TTPalettes extends HTMLElement {
               h('span', { class: 'step' }, s.step, gamutBadge ? h('span', { class: `gamut ${gamutBadge === 'P3' ? 'p3' : 'out'}` }, gamutBadge) : null),
               h('code', { class: 'value' }, value.approx ? `≈ ${value.text}` : value.text),
               h('span', { class: 'lch' }, h('span', null, `L ${r.l}`), h('span', null, `C ${r.c}`), h('span', null, `H ${r.h}`)),
+              contrast ? swatchContrast(result?.scores[s.step], contrast.levels) : null,
             ),
           ),
         );

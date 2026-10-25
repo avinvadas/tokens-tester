@@ -22,6 +22,9 @@ export function loadSettings(): Settings {
       acceptLegacy: typeof parsed.acceptLegacy === 'boolean' ? parsed.acceptLegacy : DEFAULT_SETTINGS.acceptLegacy,
       colorFormat: oneOf(parsed.colorFormat, ['oklch', 'hex', 'rgb'] as const, DEFAULT_SETTINGS.colorFormat),
       gamut: oneOf(parsed.gamut, ['srgb', 'p3'] as const, DEFAULT_SETTINGS.gamut),
+      contrast: Array.isArray(parsed.contrast)
+        ? (['wcag-aa', 'wcag-aaa', 'apca'] as const).filter((t) => (parsed.contrast as unknown[]).includes(t))
+        : DEFAULT_SETTINGS.contrast,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

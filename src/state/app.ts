@@ -1,3 +1,5 @@
+import type { EndId } from '../contrast/analyze';
+import type { EndChoice } from '../contrast/ends';
 import { isLoadError, parseSource } from '../io/load';
 import { deleteIn, renameIn, setIn, type JDoc } from '../json/cst';
 import type { Edit, Fix, Model, Settings, SourceFile } from '../model/types';
@@ -30,6 +32,8 @@ export interface AppState {
    * Kept in memory only: group names are token data and never go to storage.
    */
   paletteOverrides: Readonly<Record<string, boolean>>;
+  /** Chosen light/dark contrast ends (token ids, "white" or "black"). In memory only, like the overrides. */
+  contrastEnds: Readonly<EndChoice>;
   files: SourceFile[];
   model: Model;
   loadErrors: LoadError[];
@@ -48,6 +52,7 @@ function reprepare(f: SourceFile, settings: Settings): SourceFile {
 const initial = (settings: Settings): AppState => ({
   settings,
   paletteOverrides: {},
+  contrastEnds: {},
   files: [],
   model: analyze([], settings),
   loadErrors: [],
@@ -89,6 +94,10 @@ export function clearAll() {
 
 export function setPaletteIncluded(id: string, included: boolean) {
   store.set((s) => ({ paletteOverrides: { ...s.paletteOverrides, [id]: included } }));
+}
+
+export function setContrastEnd(end: EndId, id: string) {
+  store.set((s) => ({ contrastEnds: { ...s.contrastEnds, [end]: id } }));
 }
 
 export function setBusy(busy: boolean) {

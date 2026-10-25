@@ -11,6 +11,8 @@ export interface Settings {
   colorFormat: 'oklch' | 'hex' | 'rgb';
   /** Target gamut: colors outside it are flagged. */
   gamut: 'srgb' | 'p3';
+  /** Contrast compliance targets checked in the palette view. */
+  contrast: ('wcag-aa' | 'wcag-aaa' | 'apca')[];
 }
 
 /** One change to a document. */
