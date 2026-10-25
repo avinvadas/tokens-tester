@@ -1,0 +1,43 @@
+{
+  "color": {
+    "$type": "color",
+    "white": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "black": {
+      "$value": {
+        "colorSpace": "srgb",
+        "components": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "bg": {
+      "$value": "{color.white}",
+      "$extensions": {
+        "mode": {
+          "light": "{color.white}",
+          "dark": "{color.black}"
+        }
+      }
+    },
+    "fg": {
+      "$value": "{color.black}",
+      "$extensions": {
+        "mode": {
+          "light": "{color.black}",
+          "dark": "#ffffff"
+        }
+      }
+    }
+  }
+}

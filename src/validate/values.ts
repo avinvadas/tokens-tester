@@ -325,7 +325,7 @@ export function typeAndValueRules(model: Model): Issue[] {
       fix = {
         label,
         preview: { before: compact(t.rawValue), after: compact(fixed) },
-        edits: [{ fileId: t.fileId, path: [...t.keyPath, '$value'], value: fixed }],
+        edits: [{ fileId: t.fileId, path: [...t.keyPath, ...t.valuePath], value: fixed }],
       };
     }
     const lines = problems.map((p) => p.message);

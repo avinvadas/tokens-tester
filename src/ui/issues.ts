@@ -1,5 +1,6 @@
 import type { Category, Fix, Issue, Model, Severity } from '../model/types';
-import { applyFixes, store, undo } from '../state/app';
+import { ALL_THEMES, applyFixes, setActiveTheme, store, undo, type AppState } from '../state/app';
+import { mergeModels } from '../themes/merge';
 import { h, masked, plural } from './dom';
 import { reloadAll } from './loader';
 
@@ -34,7 +35,11 @@ export class TTIssues extends HTMLElement {
       if (summary) this.setStatus(`${summary} · ${timeNow()}`);
     };
     this.unsubs.push(
-      store.select((s) => s.model, (m) => this.render(m)),
+      store.select(
+        (s): Pick<AppState, 'model' | 'themeModels' | 'activeTheme' | 'themes'> => s,
+        (v) => this.render(v.model, v),
+        (a, b) => a.model === b.model && a.themeModels === b.themeModels && a.activeTheme === b.activeTheme,
+      ),
       store.select((s) => s.busy, (busy) => (this.reload.disabled = busy)),
     );
   }
@@ -55,8 +60,23 @@ export class TTIssues extends HTMLElement {
     this.setStatus(fixes.length === 1 ? `Applied: ${fixes[0]!.label}` : `Applied ${fixes.length} fixes`, edits > 0);
   }
 
-  private render(model: Model) {
-    const names = new Map(model.files.map((f) => [f.id, f.name]));
+  /** In a single-theme view, how many issues exist only in other themes. */
+  private otherThemes(v: Pick<AppState, 'themeModels' | 'activeTheme' | 'themes'>) {
+    if (!v.themeModels.length || v.activeTheme === ALL_THEMES) return null;
+    const name = v.themes.find((t) => t.id === v.activeTheme)?.name;
+    const elsewhere = mergeModels(v.themeModels).issues.filter((i) => i.themes && name && !i.themes.includes(name)).length;
+    return h(
+      'p',
+      { class: 'note' },
+      masked(h('span', null, `Showing theme “${name}”. `)),
+      elsewhere ? `${elsewhere} more ${elsewhere === 1 ? 'issue occurs' : 'issues occur'} only in other themes. ` : 'Other themes have no further issues. ',
+      h('button', { type: 'button', class: 'link', onclick: () => setActiveTheme(ALL_THEMES) }, 'Show all themes'),
+    );
+  }
+
+  private render(model: Model, v: Pick<AppState, 'themeModels' | 'activeTheme' | 'themes'>) {
+    // All loaded files: a theme's model only knows its own, and the all-themes view merges several.
+    const names = new Map(store.get().files.map((f) => [f.id, f.name]));
     const count = (s: Severity) => model.issues.filter((i) => i.severity === s).length;
     const where = (i: Issue) => {
       const name = i.fileId ? names.get(i.fileId) : undefined;
@@ -83,6 +103,7 @@ export class TTIssues extends HTMLElement {
         ),
         h('div', { class: 'reload-wrap' }, this.status, this.reload),
       ),
+      this.otherThemes(v) ?? '',
       groups.length === 0
         ? h('p', { class: 'empty' }, model.files.length ? 'No problems found. The files follow the DTCG format.' : '')
         : h(
@@ -121,7 +142,7 @@ export class TTIssues extends HTMLElement {
       h(
         'div',
         { class: 'body' },
-        h('span', { class: 'msg' }, i.message),
+        h('span', { class: 'msg' }, i.themes ? h('span', { class: 'theme-tag' }, `${i.themes.join(', ')} only`) : null, i.message),
         fix
           ? h(
               'div',

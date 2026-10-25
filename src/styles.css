@@ -318,3 +318,22 @@ table.nearest th { font-family: var(--sans); color: var(--muted); font-weight: 6
 .parity h3 { margin: 0 0 4px; font-size: 0.95rem; }
 .parity .meta { margin: 0 0 8px; font-size: 0.85rem; }
 .parity .ok { margin: 0; color: var(--ok); font-size: 0.88rem; }
+
+/* Themes */
+
+.themes-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.themes-head h2 { margin: 0; }
+tt-themes .meta { color: var(--muted); font-size: 0.88rem; margin: 0 0 10px; }
+table.theme-matrix { border-collapse: collapse; font-size: 0.88rem; min-width: 100%; }
+table.theme-matrix th, table.theme-matrix td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+table.theme-matrix th { background: var(--surface-2); }
+table.theme-matrix th small, table.theme-matrix td small { display: block; color: var(--muted); font-weight: 400; font-size: 0.75rem; }
+table.theme-matrix td small { display: inline; }
+table.theme-matrix tfoot td { font-weight: 600; color: var(--muted); border-bottom: 0; }
+table.theme-matrix tfoot td.bad { color: var(--error); }
+table.theme-matrix tfoot td.good { color: var(--ok); }
+.theme-name { display: flex; align-items: center; gap: 4px; }
+.theme-name input { font-weight: 600; padding: 3px 6px; }
+.add-theme { margin-top: 10px; }
+.theme-tag { display: inline-block; font-size: 0.72rem; font-weight: 600; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0 8px; margin-right: 6px; }
+table.theme-matrix td.file-name { min-width: 14ch; overflow-wrap: anywhere; font-weight: 600; }

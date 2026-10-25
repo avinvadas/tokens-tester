@@ -72,6 +72,8 @@ export interface Issue {
   /** Location of the token or group inside its file, for fixes. */
   keyPath?: string[];
   pos?: Pos;
+  /** In the all-themes view: the themes this issue occurs in, when not all of them. */
+  themes?: string[];
 }
 
 export type Resolution = 'ok' | 'broken';
@@ -89,8 +91,10 @@ export interface Token {
   inheritedType?: string;
   /** Final type: declared, inherited, or taken from the alias target. */
   type?: string;
-  /** `$value` as written. */
+  /** `$value` as written (or, in a mode theme, the mode's value). */
   rawValue: unknown;
+  /** Where `rawValue` sits inside the token object: ["$value"], or a mode entry under `$extensions`. */
+  valuePath: string[];
   /** `$value` with every reference replaced; undefined when resolution failed. */
   value?: unknown;
   /** Set when the whole value is a reference to another token. */
@@ -120,6 +124,16 @@ export interface Group {
   /** Raw `$extends` reference. */
   extends?: string;
   pos?: Pos;
+}
+
+/**
+ * What a theme reads: which Tokens Studio sets per file (all when absent),
+ * and which `$extensions` mode supplies values (the plain `$value` when absent).
+ * Which files a theme includes is decided before building.
+ */
+export interface ThemeScope {
+  sets?: Readonly<Record<string, readonly string[]>>;
+  mode?: string;
 }
 
 export interface Model {

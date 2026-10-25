@@ -1,11 +1,13 @@
 import { download, exportAs, isUnchanged, type ExportFormat } from '../io/export';
+import { isStudioMetaFile } from '../model/format';
 import type { SourceFile } from '../model/types';
-import { clearAll, redo, removeFile, store, undo, type AppState } from '../state/app';
+import { allModels, clearAll, redo, removeFile, store, undo, type AppState } from '../state/app';
 import { h, masked, plural } from './dom';
 
 const LEGACY_LABEL = { 'tokens-studio': 'Tokens Studio', 'style-dictionary': 'Style Dictionary' } as const;
 
 function formatLabel(f: SourceFile): string {
+  if (isStudioMetaFile(f)) return 'Tokens Studio project metadata';
   if (f.format === 'dtcg') return 'DTCG';
   if (f.format === 'unknown') return 'No tokens found';
   const kind = f.legacyKind ? LEGACY_LABEL[f.legacyKind] : 'Legacy format';
@@ -27,9 +29,9 @@ export class TTFiles extends HTMLElement {
 
   connectedCallback() {
     this.unsub = store.select(
-      (s): Pick<AppState, 'files' | 'model' | 'past' | 'future'> => s,
+      (s): Pick<AppState, 'files' | 'model' | 'themeModels' | 'past' | 'future'> => s,
       (s) => this.render(s),
-      (a, b) => a.files === b.files && a.past === b.past && a.future === b.future,
+      (a, b) => a.files === b.files && a.themeModels === b.themeModels && a.past === b.past && a.future === b.future,
     );
   }
 
@@ -37,9 +39,15 @@ export class TTFiles extends HTMLElement {
     this.unsub?.();
   }
 
-  private render({ files, model, past, future }: Pick<AppState, 'files' | 'model' | 'past' | 'future'>) {
+  private render(state: Pick<AppState, 'files' | 'model' | 'themeModels' | 'past' | 'future'>) {
+    const { files, past, future } = state;
+    // A file read by several themes has the same tokens in each; count it once.
     const counts = new Map<string, number>();
-    for (const t of model.tokens.values()) if (!t.extendedFrom) counts.set(t.fileId, (counts.get(t.fileId) ?? 0) + 1);
+    for (const model of allModels(state as AppState)) {
+      const per = new Map<string, number>();
+      for (const t of model.tokens.values()) if (!t.extendedFrom) per.set(t.fileId, (per.get(t.fileId) ?? 0) + 1);
+      for (const [id, n] of per) counts.set(id, Math.max(counts.get(id) ?? 0, n));
+    }
 
     const rows = files.map((f) => {
       const same = isUnchanged(f);

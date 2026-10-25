@@ -2,7 +2,10 @@ import type { EndId } from '../contrast/analyze';
 import type { EndChoice } from '../contrast/ends';
 import { isLoadError, parseSource } from '../io/load';
 import { deleteIn, renameIn, setIn, type JDoc } from '../json/cst';
+import { isStudioMetaFile } from '../model/format';
 import type { Edit, Fix, Model, Settings, SourceFile } from '../model/types';
+import { detectThemes, type Theme } from '../themes/detect';
+import { mergeModels, orphanIssues, type ThemeModel } from '../themes/merge';
 import { analyze } from '../validate';
 import { loadSettings, saveSettings } from './settings';
 import { createStore } from './store';
@@ -35,6 +38,17 @@ export interface AppState {
   /** Chosen light/dark contrast ends (token ids, "white" or "black"). In memory only, like the overrides. */
   contrastEnds: Readonly<EndChoice>;
   files: SourceFile[];
+  /**
+   * Themes (light/dark, brands…). Detected from the files until the user edits
+   * them. Kept in memory only: theme and file names are token data.
+   */
+  themes: Theme[];
+  themesCustomized: boolean;
+  /** A theme id, or ALL_THEMES. */
+  activeTheme: string;
+  /** One model per theme; empty when there are no themes. */
+  themeModels: ThemeModel[];
+  /** The model for the active theme (all themes merged for ALL_THEMES; the whole file set without themes). */
   model: Model;
   loadErrors: LoadError[];
   busy: boolean;
@@ -49,11 +63,17 @@ function reprepare(f: SourceFile, settings: Settings): SourceFile {
   return isLoadError(r) ? f : { ...r, id: f.id };
 }
 
+export const ALL_THEMES = 'all';
+
 const initial = (settings: Settings): AppState => ({
   settings,
   paletteOverrides: {},
   contrastEnds: {},
   files: [],
+  themes: [],
+  themesCustomized: false,
+  activeTheme: ALL_THEMES,
+  themeModels: [],
   model: analyze([], settings),
   loadErrors: [],
   busy: false,
@@ -63,7 +83,37 @@ const initial = (settings: Settings): AppState => ({
 
 export const store = createStore<AppState>(initial(loadSettings()));
 
-const withFiles = (files: SourceFile[], settings = store.get().settings) => ({ files, model: analyze(files, settings) });
+type Derived = Pick<AppState, 'files' | 'themes' | 'themesCustomized' | 'activeTheme' | 'themeModels' | 'model'>;
+
+/**
+ * Recompute themes and models for `files`. Until the user edits themes they
+ * are re-detected; edited themes only lose files that are gone.
+ */
+function derive(s: AppState, files: SourceFile[], settings: Settings, edited?: Theme[]): Derived {
+  const customized = edited !== undefined || s.themesCustomized;
+  const ids = new Set(files.map((f) => f.id));
+  const themes = !customized
+    ? detectThemes(files, settings)
+    : (edited ?? s.themes).map((t) => ({ ...t, fileIds: t.fileIds.filter((id) => ids.has(id)) }));
+  if (themes.length === 0) {
+    return { files, themes, themesCustomized: customized, activeTheme: ALL_THEMES, themeModels: [], model: analyze(files, settings) };
+  }
+  const orphans = files.filter((f) => !isStudioMetaFile(f) && !themes.some((t) => t.fileIds.includes(f.id)));
+  const themeModels = themes.map((theme) => {
+    const model = analyze(files.filter((f) => theme.fileIds.includes(f.id)), settings, theme.scope);
+    model.issues.push(...orphanIssues(orphans));
+    return { theme, model };
+  });
+  const activeTheme = themes.some((t) => t.id === s.activeTheme) ? s.activeTheme : ALL_THEMES;
+  return { files, themes, themesCustomized: customized, activeTheme, themeModels, model: activeModel(themeModels, activeTheme) };
+}
+
+function activeModel(themeModels: ThemeModel[], active: string): Model {
+  return themeModels.find((m) => m.theme.id === active)?.model ?? mergeModels(themeModels);
+}
+
+/** Every model in play: one per theme, or the single model without themes. */
+export const allModels = (s: AppState): Model[] => (s.themeModels.length ? s.themeModels.map((m) => m.model) : [s.model]);
 
 /** Add or replace (by name) loaded files. Loading is not an undoable edit. */
 export function addFiles(added: SourceFile[], errors: LoadError[] = []) {
@@ -71,7 +121,16 @@ export function addFiles(added: SourceFile[], errors: LoadError[] = []) {
     const names = new Set(added.map((f) => f.name));
     const replaced = new Set(s.files.filter((f) => names.has(f.name)).map((f) => f.id));
     const files = [...s.files.filter((f) => !replaced.has(f.id)), ...added];
-    return { ...withFiles(files, s.settings), loadErrors: errors, ...dropHistory(s, replaced) };
+    // Edited themes: a reloaded file keeps its place; a new file joins every theme.
+    let edited: Theme[] | undefined;
+    if (s.themesCustomized) {
+      const newId = new Map(added.map((f) => [f.name, f.id]));
+      const successor = new Map(s.files.filter((f) => replaced.has(f.id)).map((f) => [f.id, newId.get(f.name)!]));
+      const reloaded = new Set(successor.values());
+      const fresh = added.filter((f) => !reloaded.has(f.id)).map((f) => f.id);
+      edited = s.themes.map((t) => ({ ...t, fileIds: [...t.fileIds.map((id) => successor.get(id) ?? id), ...fresh] }));
+    }
+    return { ...derive(s, files, s.settings, edited), loadErrors: errors, ...dropHistory(s, replaced) };
   });
 }
 
@@ -80,12 +139,12 @@ export function replaceFiles(updated: SourceFile[], errors: LoadError[] = []) {
   store.set((s) => {
     const byId = new Map(updated.map((f) => [f.id, f]));
     const files = s.files.map((f) => byId.get(f.id) ?? f);
-    return { ...withFiles(files, s.settings), loadErrors: errors, ...dropHistory(s, new Set(byId.keys())) };
+    return { ...derive(s, files, s.settings), loadErrors: errors, ...dropHistory(s, new Set(byId.keys())) };
   });
 }
 
 export function removeFile(id: string) {
-  store.set((s) => ({ ...withFiles(s.files.filter((f) => f.id !== id), s.settings), ...dropHistory(s, new Set([id])) }));
+  store.set((s) => ({ ...derive(s, s.files.filter((f) => f.id !== id), s.settings), ...dropHistory(s, new Set([id])) }));
 }
 
 export function clearAll() {
@@ -98,6 +157,52 @@ export function setPaletteIncluded(id: string, included: boolean) {
 
 export function setContrastEnd(end: EndId, id: string) {
   store.set((s) => ({ contrastEnds: { ...s.contrastEnds, [end]: id } }));
+}
+
+// ---------------------------------------------------------------------------
+// Themes
+
+export function setActiveTheme(id: string) {
+  store.set((s) => ({ activeTheme: id, model: s.themeModels.length ? activeModel(s.themeModels, id) : s.model }));
+}
+
+function editThemes(fn: (themes: Theme[], s: AppState) => Theme[]) {
+  store.set((s) => derive(s, s.files, s.settings, fn(s.themes, s)));
+}
+
+let manualCount = 0;
+const manualTheme = (name: string, fileIds: string[]): Theme => ({ id: `manual:${++manualCount}`, name, source: 'manual', fileIds, scope: {} });
+
+/** Add a theme that reads every file; with no themes yet, start with two to compare. */
+export function addTheme() {
+  editThemes((themes, s) => {
+    const all = s.files.filter((f) => !isStudioMetaFile(f)).map((f) => f.id);
+    if (themes.length === 0) return [manualTheme('Theme 1', all), manualTheme('Theme 2', all)];
+    return [...themes, manualTheme(`Theme ${themes.length + 1}`, all)];
+  });
+}
+
+export function renameTheme(id: string, name: string) {
+  editThemes((themes) => themes.map((t) => (t.id === id ? { ...t, name: name.trim() || t.name } : t)));
+}
+
+export function removeTheme(id: string) {
+  editThemes((themes) => themes.filter((t) => t.id !== id));
+}
+
+export function setThemeFile(themeId: string, fileId: string, included: boolean) {
+  editThemes((themes, s) =>
+    themes.map((t) => {
+      if (t.id !== themeId) return t;
+      const want = new Set(included ? [...t.fileIds, fileId] : t.fileIds.filter((id) => id !== fileId));
+      return { ...t, fileIds: s.files.map((f) => f.id).filter((id) => want.has(id)) };
+    }),
+  );
+}
+
+/** Forget edits and detect themes from the files again. */
+export function resetThemes() {
+  store.set((s) => derive({ ...s, themesCustomized: false }, s.files, s.settings));
 }
 
 export function setBusy(busy: boolean) {
@@ -116,11 +221,11 @@ export function updateSettings(patch: Partial<Settings>) {
   store.set((s) => {
     const settings = { ...s.settings, ...patch };
     saveSettings(settings);
-    if (settings.acceptLegacy === s.settings.acceptLegacy) return { settings, model: analyze(s.files, settings) };
+    if (settings.acceptLegacy === s.settings.acceptLegacy) return { settings, ...derive(s, s.files, settings) };
     const legacy = s.files.filter((f) => f.format === 'legacy');
     const fresh = new Map(legacy.map((f) => [f.id, reprepare(f, settings)]));
     const files = s.files.map((f) => fresh.get(f.id) ?? f);
-    return { settings, ...withFiles(files, settings), ...dropHistory(s, new Set(fresh.keys())) };
+    return { settings, ...derive(s, files, settings), ...dropHistory(s, new Set(fresh.keys())) };
   });
 }
 
@@ -137,7 +242,7 @@ export function applyEdits(label: string, edits: Edit[]) {
       .filter((f) => docs.get(f.id) !== f.doc)
       .map((f) => ({ fileId: f.id, before: f.doc, after: docs.get(f.id)! }));
     if (changes.length === 0) return {};
-    return { ...withFiles(swapDocs(s.files, changes, 'after'), s.settings), past: [...s.past, { label, changes }], future: [] };
+    return { ...derive(s, swapDocs(s.files, changes, 'after'), s.settings), past: [...s.past, { label, changes }], future: [] };
   });
 }
 
@@ -203,7 +308,7 @@ export function undo() {
   store.set((s) => {
     const cmd = s.past.at(-1);
     if (!cmd) return {};
-    return { ...withFiles(swapDocs(s.files, cmd.changes, 'before'), s.settings), past: s.past.slice(0, -1), future: [cmd, ...s.future] };
+    return { ...derive(s, swapDocs(s.files, cmd.changes, 'before'), s.settings), past: s.past.slice(0, -1), future: [cmd, ...s.future] };
   });
 }
 
@@ -211,7 +316,7 @@ export function redo() {
   store.set((s) => {
     const cmd = s.future[0];
     if (!cmd) return {};
-    return { ...withFiles(swapDocs(s.files, cmd.changes, 'after'), s.settings), past: [...s.past, cmd], future: s.future.slice(1) };
+    return { ...derive(s, swapDocs(s.files, cmd.changes, 'after'), s.settings), past: [...s.past, cmd], future: s.future.slice(1) };
   });
 }
 

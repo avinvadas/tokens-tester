@@ -1,0 +1,68 @@
+{
+  "global": {
+    "color": {
+      "$type": "color",
+      "white": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      "black": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    }
+  },
+  "light": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.white}"
+    }
+  },
+  "dark": {
+    "bg": {
+      "$type": "color",
+      "$value": "{color.black}"
+    }
+  },
+  "$themes": [
+    {
+      "id": "t1",
+      "name": "Light",
+      "group": "Mode",
+      "selectedTokenSets": {
+        "global": "source",
+        "light": "enabled",
+        "dark": "disabled"
+      }
+    },
+    {
+      "id": "t2",
+      "name": "Dark",
+      "group": "Mode",
+      "selectedTokenSets": {
+        "global": "source",
+        "light": "disabled",
+        "dark": "enabled"
+      }
+    }
+  ],
+  "$metadata": {
+    "tokenSetOrder": [
+      "global",
+      "light",
+      "dark"
+    ]
+  }
+}

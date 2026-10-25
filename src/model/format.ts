@@ -27,3 +27,6 @@ export function detectFormat(root: JNode): FileFormat {
   visit(root);
   return dtcg ? 'dtcg' : legacy ? 'legacy' : 'unknown';
 }
+
+/** Tokens Studio project files (`$themes.json`, `$metadata.json`) that hold metadata rather than tokens. */
+export const isStudioMetaFile = (f: { name: string }) => /(^|\/)\$(themes|metadata)\.json$/.test(f.name);

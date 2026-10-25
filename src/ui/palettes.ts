@@ -3,7 +3,7 @@ import type { PaletteContrast } from '../contrast/analyze';
 import type { Palette, PaletteSet, Swatch } from '../palette/detect';
 import type { ScaleFlag } from '../palette/checks';
 import type { Settings } from '../model/types';
-import { setPaletteIncluded, store, updateSettings, type AppState } from '../state/app';
+import { ALL_THEMES, setPaletteIncluded, store, updateSettings, type AppState } from '../state/app';
 import { contrastOf, type ContrastView } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
@@ -17,7 +17,7 @@ const FORMATS: { value: Settings['colorFormat']; label: string }[] = [
   { value: 'rgb', label: 'RGB' },
 ];
 
-type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds'>;
+type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds' | 'themes' | 'activeTheme'>;
 
 /** Tier-1 colors as ordered palettes, with scale checks and gamut flags. */
 export class TTPalettes extends HTMLElement {
@@ -58,6 +58,9 @@ export class TTPalettes extends HTMLElement {
       h(
         'div',
         { class: 'palettes-body' },
+        v.themes.length > 1 && v.activeTheme === ALL_THEMES
+          ? h('p', { class: 'note' }, 'Base colors are shown for the first theme, ', masked(h('b', null, v.themes[0]!.name)), '. Pick a theme above to see its own.')
+          : null,
         settings.gamut === 'p3' && shown === 'srgb'
           ? h('p', { class: 'note' }, "This screen can't show Display P3, so P3 colors are drawn mapped to sRGB and marked with a corner triangle.")
           : null,

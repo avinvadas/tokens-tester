@@ -1,7 +1,9 @@
 import { entry, toJS, type JNode, type JObject, type Pos } from '../json/cst';
 import { DEFAULT_SETTINGS } from './defaults';
 import { closest } from './suggest';
-import type { Category, Fix, Group, Issue, Model, Settings, Severity, SourceFile, Token } from './types';
+import { isStudioMetaFile } from './format';
+import { modeValues } from './modes';
+import type { Category, Fix, Group, Issue, Model, Settings, Severity, SourceFile, ThemeScope, Token } from './types';
 
 /**
  * Build the token model from loaded files: collect tokens and groups,
@@ -51,6 +53,7 @@ export function tokenSets(root: JNode): string[] | undefined {
 
 interface Ctx {
   model: Model;
+  scope: ThemeScope;
   order: number;
   byKeyPath: Map<string, Token>;
   groupIds: Set<string>;
@@ -73,11 +76,12 @@ export function makeIssue(
   return issue;
 }
 
-export function buildModel(files: SourceFile[], settings: Settings = DEFAULT_SETTINGS): Model {
+export function buildModel(files: SourceFile[], settings: Settings = DEFAULT_SETTINGS, scope: ThemeScope = {}): Model {
   const model: Model = { files, settings, tokens: new Map(), groups: [], issues: [] };
-  const ctx: Ctx = { model, order: 0, byKeyPath: new Map(), groupIds: new Set() };
+  const ctx: Ctx = { model, scope, order: 0, byKeyPath: new Map(), groupIds: new Set() };
 
   for (const f of files) {
+    if (isStudioMetaFile(f)) continue;
     for (const d of f.duplicates) {
       const where = d.path.length ? quote(d.path.join('.')) : 'the root object';
       model.issues.push(
@@ -116,7 +120,9 @@ export function buildModel(files: SourceFile[], settings: Settings = DEFAULT_SET
     }
     const sets = tokenSets(f.doc.root);
     if (sets) {
+      const enabled = scope.sets?.[f.id];
       for (const set of sets) {
+        if (enabled && !enabled.includes(set)) continue;
         const e = entry(f.doc.root, set)!;
         walkGroup(ctx, f, e.value as JObject, [], [set], undefined, e.pos);
       }
@@ -188,8 +194,16 @@ function invalidNode(ctx: Ctx, f: SourceFile, path: string[], keyPath: string[],
 
 function addToken(ctx: Ctx, f: SourceFile, node: JObject, path: string[], keyPath: string[], inheritedType: string | undefined, pos: Pos | undefined) {
   const id = path.join('.');
-  const rawValue = toJS(entry(node, '$value')!.value);
-  const t: Token = { id, path, fileId: f.id, keyPath, rawValue, refs: [], resolution: 'ok', order: ctx.order++ };
+  let rawValue = toJS(entry(node, '$value')!.value);
+  let valuePath = ['$value'];
+  if (ctx.scope.mode !== undefined) {
+    const modes = modeValues(obj(entry(node, '$extensions')?.value));
+    if (modes && Object.prototype.hasOwnProperty.call(modes.values, ctx.scope.mode)) {
+      rawValue = modes.values[ctx.scope.mode];
+      valuePath = [...modes.path, ctx.scope.mode];
+    }
+  }
+  const t: Token = { id, path, fileId: f.id, keyPath, rawValue, valuePath, refs: [], resolution: 'ok', order: ctx.order++ };
   const declaredType = str(entry(node, '$type')?.value);
   if (declaredType !== undefined) t.declaredType = declaredType;
   if (inheritedType !== undefined) t.inheritedType = inheritedType;
@@ -381,7 +395,7 @@ function resolveAll(ctx: Ctx) {
   const refFix = (owner: Token, from: string, to: string): Fix => ({
     label: `Use {${to}}`,
     preview: { before: `{${from}}`, after: `{${to}}` },
-    edits: [{ fileId: owner.fileId, path: [...owner.keyPath, '$value'], value: replaceRef(owner.rawValue, from, to) }],
+    edits: [{ fileId: owner.fileId, path: [...owner.keyPath, ...owner.valuePath], value: replaceRef(owner.rawValue, from, to) }],
   });
 
   const resolvePointer = (owner: Token, ref: string, st: Status, whole: boolean): unknown => {

@@ -1,6 +1,7 @@
 import { colorInfo, formatColor } from '../color/format';
 import type { Model, Settings, Token } from '../model/types';
-import { store } from '../state/app';
+import { ALL_THEMES, store } from '../state/app';
+import type { ThemeModel } from '../themes/merge';
 import { h, masked, plural } from './dom';
 
 const PAGE = 300;
@@ -31,6 +32,9 @@ export class TTTokens extends HTMLElement {
   private type = '';
   private limit = PAGE;
   private body = h('tbody');
+  private head = h('thead');
+  /** In the all-themes view: one model per theme, shown as one column each. */
+  private themes: ThemeModel[] = [];
   private summary = h('p', { class: 'summary' });
   private typeSelect = h('select', { 'aria-label': 'Filter by type' });
 
@@ -58,22 +62,31 @@ export class TTTokens extends HTMLElement {
           h(
             'table',
             { class: 'tokens' },
-            h('thead', null, h('tr', null, h('th', null, 'Token'), h('th', null, 'Type'), h('th', null, 'Value'), h('th', null, 'Resolved'))),
+            this.head,
             this.body,
           ),
         ),
       ),
     );
     this.unsub = store.select(
-      (s) => [s.model, s.settings.colorFormat] as const,
-      ([m, format]) => {
+      (s) => [s.model, s.settings.colorFormat, s.themeModels, s.activeTheme] as const,
+      ([m, format, themeModels, active]) => {
         this.model = m;
         this.format = format;
+        this.themes = active === ALL_THEMES && themeModels.length > 1 ? themeModels : [];
+        this.renderHead();
         this.renderTypes();
         this.renderRows();
       },
-      (a, b) => a[0] === b[0] && a[1] === b[1],
+      (a, b) => a.every((x, i) => x === b[i]),
     );
+  }
+
+  private renderHead() {
+    const cols = this.themes.length
+      ? this.themes.map((t) => h('th', null, t.theme.name))
+      : [h('th', null, 'Value'), h('th', null, 'Resolved')];
+    this.head.replaceChildren(h('tr', null, h('th', null, 'Token'), h('th', null, 'Type'), cols));
   }
 
   disconnectedCallback() {
@@ -89,8 +102,18 @@ export class TTTokens extends HTMLElement {
     );
   }
 
+  /** Tokens to list: the active model's, or every theme's (each id once, in first-seen order). */
+  private tokens(): Token[] {
+    if (!this.themes.length) return [...(this.model?.tokens.values() ?? [])].sort((a, b) => a.order - b.order);
+    const seen = new Map<string, Token>();
+    for (const { model } of this.themes) {
+      for (const t of [...model.tokens.values()].sort((a, b) => a.order - b.order)) if (!seen.has(t.id)) seen.set(t.id, t);
+    }
+    return [...seen.values()];
+  }
+
   private renderRows() {
-    const all = [...(this.model?.tokens.values() ?? [])].sort((a, b) => a.order - b.order);
+    const all = this.tokens();
     const q = this.query;
     const rows = all.filter(
       (t) =>
@@ -102,7 +125,7 @@ export class TTTokens extends HTMLElement {
     if (rows.length > shown.length) {
       this.summary.append(' · ', h('button', { class: 'link', onclick: () => ((this.limit = Infinity), this.renderRows()) }, `Show all ${rows.length}`));
     }
-    this.body.replaceChildren(...shown.map((t) => row(t, this.format)));
+    this.body.replaceChildren(...shown.map((t) => (this.themes.length ? themedRow(t, this.themes, this.format) : row(t, this.format))));
   }
 }
 
@@ -120,5 +143,30 @@ function row(t: Token, format: Settings['colorFormat']) {
     h('td', { class: 'type' }, t.type ?? h('em', null, 'none')),
     h('td', { class: 'value' }, t.aliasOf ? h('code', { class: 'alias' }, `→ {${t.aliasOf}}`) : h('code', null, formatValue(t.rawValue, format))),
     h('td', { class: 'resolved' }, t.resolution === 'broken' ? h('em', null, 'unresolved') : h('code', null, formatValue(t.value, format))),
+  );
+}
+
+/** One row in the all-themes view: the token's value and resolution in each theme. */
+function themedRow(first: Token, themes: ThemeModel[], format: Settings['colorFormat']) {
+  const per = themes.map((m) => m.model.tokens.get(first.id));
+  const broken = per.some((t) => t?.resolution === 'broken');
+  return h(
+    'tr',
+    { class: broken ? 'broken' : undefined },
+    h('td', { class: 'name' }, h('code', null, first.id)),
+    h('td', { class: 'type' }, first.type ?? h('em', null, 'none')),
+    per.map((t) =>
+      h(
+        'td',
+        { class: 'resolved' },
+        !t
+          ? h('em', null, 'not in this theme')
+          : [
+              t.aliasOf ? h('code', { class: 'alias' }, `→ {${t.aliasOf}}`) : null,
+              t.aliasOf ? h('br') : null,
+              t.resolution === 'broken' ? h('em', null, 'unresolved') : h('code', null, formatValue(t.value, format)),
+            ],
+      ),
+    ),
   );
 }

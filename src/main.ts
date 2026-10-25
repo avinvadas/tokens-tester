@@ -6,6 +6,7 @@ import { TTIssues } from './ui/issues';
 import { ingest, TTLoader } from './ui/loader';
 import { TTPalettes } from './ui/palettes';
 import { TTSettings } from './ui/settings';
+import { TTThemes } from './ui/themes';
 import { TTTokens } from './ui/tokens';
 
 customElements.define('tt-loader', TTLoader);
@@ -14,6 +15,7 @@ customElements.define('tt-issues', TTIssues);
 customElements.define('tt-tokens', TTTokens);
 customElements.define('tt-settings', TTSettings);
 customElements.define('tt-palettes', TTPalettes);
+customElements.define('tt-themes', TTThemes);
 
 store.select(
   (s) => s.files.length > 0,

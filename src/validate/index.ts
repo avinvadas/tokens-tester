@@ -1,5 +1,6 @@
 import { buildModel, makeIssue } from '../model/build';
-import type { Issue, Model, Settings, SourceFile } from '../model/types';
+import { isStudioMetaFile } from '../model/format';
+import type { Issue, Model, Settings, SourceFile, ThemeScope } from '../model/types';
 import { metadataRules } from './metadata';
 import { referenceRules } from './references';
 import { structureRules } from './structure';
@@ -8,8 +9,8 @@ import { typeAndValueRules } from './values';
 const key = (i: Issue) => `${i.fileId}\u0000${(i.keyPath ?? []).join('\u0000')}`;
 
 /** Build the model and run every rule. The result's `issues` holds model and rule findings together. */
-export function analyze(files: SourceFile[], settings: Settings): Model {
-  const model = buildModel(files, settings);
+export function analyze(files: SourceFile[], settings: Settings, scope: ThemeScope = {}): Model {
+  const model = buildModel(files, settings, scope);
   const ruleIssues = [...structureRules(model), ...typeAndValueRules(model), ...referenceRules(model), ...metadataRules(model)];
 
   // A legacy property in a group (`"value": "#fff"`) is reported, with a fix,
@@ -22,7 +23,7 @@ export function analyze(files: SourceFile[], settings: Settings): Model {
 
   const withTokens = new Set([...model.tokens.values()].map((t) => t.fileId));
   for (const f of files) {
-    if (!withTokens.has(f.id) && f.doc.root.kind === 'object' && !(f.format === 'legacy' && !f.converted)) {
+    if (!withTokens.has(f.id) && f.doc.root.kind === 'object' && !(f.format === 'legacy' && !f.converted) && !isStudioMetaFile(f)) {
       modelIssues.push(makeIssue('info', 'format', 'no-tokens', `${f.name} contains no tokens (no “$value” anywhere).`, { fileId: f.id }));
     }
   }
