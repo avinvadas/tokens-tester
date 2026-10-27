@@ -8,6 +8,15 @@ import type { FlagKind, ScaleFlag } from '../palette/checks';
  */
 
 export const TIP = {
+  // Navigation
+  navFiles: 'Load token files and download your changes.',
+  navThemes: 'Which files each theme reads, such as light and dark.',
+  navIssues: 'Problems with the DTCG format, with suggested fixes. The number counts errors and warnings.',
+  navColors: 'Base color palettes: scale checks, gamut and contrast, and the curve editor.',
+  navSemantic: 'Coming next: foreground and background pairs checked under color-vision deficiencies, with safer alias suggestions.',
+  navTokens: 'Every token with its written and resolved value.',
+  themePick: 'The theme that Issues, Base colors and Tokens show. “All themes” combines them: a check fails if it fails in any theme.',
+
   // Files
   unchanged: 'Exporting now gives back exactly the bytes you loaded.',
   unchangedConverted: 'No edits since the file was converted.',
@@ -37,8 +46,6 @@ export const TIP = {
   themeFile: 'Checked: this theme reads the file. Files every theme reads hold the shared tokens.',
   themeMode: 'The per-mode value in “$extensions” that this theme reads.',
   themeSets: 'Tokens Studio token sets this theme enables in this file.',
-  allThemes: 'Show results from every theme together. A check fails if it fails in any theme.',
-  oneTheme: 'Show results for this theme only.',
   removeTheme: 'Remove this theme. The files stay loaded.',
 
   // Tokens

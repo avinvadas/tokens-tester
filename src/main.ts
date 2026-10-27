@@ -4,6 +4,7 @@ import { redo, store, undo } from './state/app';
 import { TTFiles } from './ui/files';
 import { TTIssues } from './ui/issues';
 import { ingest, TTLoader } from './ui/loader';
+import { TTNav } from './ui/nav';
 import { TTPalettes } from './ui/palettes';
 import { TTSettings } from './ui/settings';
 import { TTThemes } from './ui/themes';
@@ -17,6 +18,7 @@ customElements.define('tt-tokens', TTTokens);
 customElements.define('tt-settings', TTSettings);
 customElements.define('tt-palettes', TTPalettes);
 customElements.define('tt-themes', TTThemes);
+customElements.define('tt-nav', TTNav);
 installTooltips();
 
 store.select(

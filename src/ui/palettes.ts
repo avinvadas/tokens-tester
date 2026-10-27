@@ -61,7 +61,7 @@ export class TTPalettes extends HTMLElement {
         'div',
         { class: 'palettes-body' },
         v.themes.length > 1 && v.activeTheme === ALL_THEMES
-          ? h('p', { class: 'note' }, 'Base colors are shown for the first theme, ', masked(h('b', null, v.themes[0]!.name)), '. Pick a theme above to see its own.')
+          ? h('p', { class: 'note' }, 'Base colors are shown for the first theme, ', masked(h('b', null, v.themes[0]!.name)), '. Pick a theme in the sidebar to see its own.')
           : null,
         settings.gamut === 'p3' && shown === 'srgb'
           ? h('p', { class: 'note' }, "This screen can't show Display P3, so P3 colors are drawn mapped to sRGB and marked with a corner triangle.")

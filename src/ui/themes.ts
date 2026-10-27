@@ -2,11 +2,9 @@ import { isStudioMetaFile } from '../model/format';
 import type { ThemeSource } from '../themes/detect';
 import {
   addTheme,
-  ALL_THEMES,
   removeTheme,
   renameTheme,
   resetThemes,
-  setActiveTheme,
   setThemeFile,
   store,
   type AppState,
@@ -69,7 +67,7 @@ export class TTThemes extends HTMLElement {
     const counts = new Map(v.themeModels.map((m) => [m.theme.id, m.model.issues.filter((i) => i.severity === 'error').length]));
 
     this.replaceChildren(
-      h('div', { class: 'themes-head' }, h('h2', null, 'Themes'), this.switcher(v)),
+      h('div', { class: 'themes-head' }, h('h2', null, 'Themes')),
       h(
         'p',
         { class: 'meta' },
@@ -138,30 +136,6 @@ export class TTThemes extends HTMLElement {
         ),
       ),
       h('button', { type: 'button', class: 'add-theme', onclick: addTheme }, 'Add theme'),
-    );
-  }
-
-  private switcher(v: View) {
-    const options = [{ id: ALL_THEMES, name: 'All themes' }, ...v.themes];
-    return masked(
-      h(
-        'div',
-        { class: 'segmented', role: 'radiogroup', 'aria-label': 'Active theme' },
-        options.map((o) =>
-          h(
-            'button',
-            {
-              type: 'button',
-              role: 'radio',
-              'aria-checked': String(o.id === v.activeTheme),
-              class: o.id === v.activeTheme ? 'on' : undefined,
-              'data-tip': o.id === ALL_THEMES ? TIP.allThemes : TIP.oneTheme,
-              onclick: () => setActiveTheme(o.id),
-            },
-            o.name,
-          ),
-        ),
-      ),
     );
   }
 }

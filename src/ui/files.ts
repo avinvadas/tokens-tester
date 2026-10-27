@@ -42,6 +42,10 @@ export class TTFiles extends HTMLElement {
 
   private render(state: Pick<AppState, 'files' | 'model' | 'themeModels' | 'past' | 'future'>) {
     const { files, past, future } = state;
+    if (!files.length) {
+      this.replaceChildren();
+      return;
+    }
     // A file read by several themes has the same tokens in each; count it once.
     const counts = new Map<string, number>();
     for (const model of allModels(state as AppState)) {
@@ -90,7 +94,7 @@ export class TTFiles extends HTMLElement {
     const lastUndo = past.at(-1)?.label;
     const nextRedo = future[0]?.label;
     this.replaceChildren(
-      h('h2', null, 'Files'),
+      h('h3', { class: 'section-title' }, 'Loaded files'),
       h('ul', { class: 'file-list' }, rows),
       h(
         'div',

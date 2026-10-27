@@ -294,7 +294,7 @@ class CurveEditor {
     const levels = view.levels.length ? view.levels : [];
     const details = h('details', { class: 'ce-contrast' });
     if (!levels.length) {
-      details.append(h('summary', { 'data-tip': CURVE_TIP.contrast }, 'Contrast-targeted…'), h('p', { class: 'meta' }, 'Turn on a contrast target in the palette view to use this.'));
+      details.append(h('summary', { 'data-tip': CURVE_TIP.contrast }, 'Contrast-targeted…'), h('p', { class: 'meta' }, 'Turn on a contrast target in Base colors to use this.'));
       return details;
     }
     const levelSelect = h('select', { 'aria-label': 'Contrast level' }, levels.map((l, i) => h('option', { value: String(i) }, l.label)));
