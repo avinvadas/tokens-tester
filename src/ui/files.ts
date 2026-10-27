@@ -3,6 +3,7 @@ import { isStudioMetaFile } from '../model/format';
 import type { SourceFile } from '../model/types';
 import { allModels, clearAll, redo, removeFile, store, undo, type AppState } from '../state/app';
 import { h, masked, plural } from './dom';
+import { TIP } from './tips';
 
 const LEGACY_LABEL = { 'tokens-studio': 'Tokens Studio', 'style-dictionary': 'Style Dictionary' } as const;
 
@@ -57,22 +58,22 @@ export class TTFiles extends HTMLElement {
         'li',
         { class: 'file' },
         masked(h('span', { class: 'file-name' }, f.name)),
-        h('span', { class: 'meta' }, `${formatLabel(f)} · ${plural(counts.get(f.id) ?? 0, 'token')}${f.origin === 'url' ? ' · from URL' : ''}`),
+        h('span', { class: 'meta', 'data-tip': TIP.fileMeta }, `${formatLabel(f)} · ${plural(counts.get(f.id) ?? 0, 'token')}${f.origin === 'url' ? ' · from URL' : ''}`),
         h(
           'span',
           {
             class: `badge ${same ? 'ok' : 'changed'}`,
-            title: same ? (f.converted ? 'No edits since the file was converted.' : 'Exporting now gives back exactly the bytes you loaded.') : 'This file has edits that are not downloaded yet.',
+            'data-tip': same ? (f.converted ? TIP.unchangedConverted : TIP.unchanged) : TIP.edited,
           },
           same ? 'Unchanged' : 'Edited',
         ),
         f.converted
           ? [
-              h('button', { class: 'ghost', onclick: () => this.save(f, 'dtcg') }, 'Download DTCG'),
-              h('button', { class: 'ghost', onclick: () => this.save(f, 'original') }, `Download as ${kind}`),
+              h('button', { class: 'ghost', 'data-tip': TIP.downloadDtcg, onclick: () => this.save(f, 'dtcg') }, 'Download DTCG'),
+              h('button', { class: 'ghost', 'data-tip': TIP.downloadLegacy, onclick: () => this.save(f, 'original') }, `Download as ${kind}`),
             ]
-          : h('button', { class: 'ghost', onclick: () => this.save(f, 'dtcg') }, 'Download'),
-        h('button', { class: 'ghost danger', onclick: () => removeFile(f.id), 'aria-label': 'Remove file' }, 'Remove'),
+          : h('button', { class: 'ghost', 'data-tip': TIP.download, onclick: () => this.save(f, 'dtcg') }, 'Download'),
+        h('button', { class: 'ghost danger', onclick: () => removeFile(f.id), 'aria-label': 'Remove file', 'data-tip': TIP.remove }, 'Remove'),
         notes
           ? masked(
               h(
@@ -94,11 +95,12 @@ export class TTFiles extends HTMLElement {
       h(
         'div',
         { class: 'toolbar' },
-        h('button', { disabled: !lastUndo, onclick: undo, title: lastUndo ? `Undo: ${lastUndo}` : 'Nothing to undo' }, 'Undo'),
-        h('button', { disabled: !nextRedo, onclick: redo, title: nextRedo ? `Redo: ${nextRedo}` : 'Nothing to redo' }, 'Redo'),
+        // Masked: the undo/redo labels can name tokens and palettes.
+        masked(h('button', { disabled: !lastUndo, onclick: undo, 'data-tip': lastUndo ? `Undo: ${lastUndo}` : TIP.undoNone }, 'Undo')),
+        masked(h('button', { disabled: !nextRedo, onclick: redo, 'data-tip': nextRedo ? `Redo: ${nextRedo}` : TIP.redoNone }, 'Redo')),
         h('span', { class: 'spacer' }),
-        files.length > 1 ? h('button', { onclick: () => files.forEach((f) => download(f.name, exportAs(f).text)) }, 'Download all (DTCG)') : null,
-        h('button', { class: 'ghost danger', onclick: clearAll }, 'Clear all'),
+        files.length > 1 ? h('button', { 'data-tip': TIP.downloadAll, onclick: () => files.forEach((f) => download(f.name, exportAs(f).text)) }, 'Download all (DTCG)') : null,
+        h('button', { class: 'ghost danger', 'data-tip': TIP.clearAll, onclick: clearAll }, 'Clear all'),
       ),
     );
   }

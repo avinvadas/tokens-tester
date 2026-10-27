@@ -3,6 +3,7 @@ import type { Model, Settings, Token } from '../model/types';
 import { ALL_THEMES, store } from '../state/app';
 import type { ThemeModel } from '../themes/merge';
 import { h, masked, plural } from './dom';
+import { TIP } from './tips';
 
 const PAGE = 300;
 
@@ -85,7 +86,7 @@ export class TTTokens extends HTMLElement {
   private renderHead() {
     const cols = this.themes.length
       ? this.themes.map((t) => h('th', null, t.theme.name))
-      : [h('th', null, 'Value'), h('th', null, 'Resolved')];
+      : [h('th', { 'data-tip': TIP.colValue }, 'Value'), h('th', { 'data-tip': TIP.colResolved }, 'Resolved')];
     this.head.replaceChildren(h('tr', null, h('th', null, 'Token'), h('th', null, 'Type'), cols));
   }
 
@@ -137,12 +138,12 @@ function row(t: Token, format: Settings['colorFormat']) {
       'td',
       { class: 'name' },
       h('code', null, t.id),
-      t.extendedFrom ? h('small', { class: 'tag' }, `from ${t.extendedFrom}`) : null,
-      t.deprecated ? h('small', { class: 'tag warn' }, 'deprecated') : null,
+      t.extendedFrom ? h('small', { class: 'tag', 'data-tip': TIP.extendedFrom }, `from ${t.extendedFrom}`) : null,
+      t.deprecated ? h('small', { class: 'tag warn', 'data-tip': TIP.deprecated }, 'deprecated') : null,
     ),
-    h('td', { class: 'type' }, t.type ?? h('em', null, 'none')),
-    h('td', { class: 'value' }, t.aliasOf ? h('code', { class: 'alias' }, `→ {${t.aliasOf}}`) : h('code', null, formatValue(t.rawValue, format))),
-    h('td', { class: 'resolved' }, t.resolution === 'broken' ? h('em', null, 'unresolved') : h('code', null, formatValue(t.value, format))),
+    h('td', { class: 'type' }, t.type ?? h('em', { 'data-tip': TIP.noType }, 'none')),
+    h('td', { class: 'value' }, t.aliasOf ? h('code', { class: 'alias', 'data-tip': TIP.alias }, `→ {${t.aliasOf}}`) : h('code', null, formatValue(t.rawValue, format))),
+    h('td', { class: 'resolved' }, t.resolution === 'broken' ? h('em', { 'data-tip': TIP.unresolved }, 'unresolved') : h('code', null, formatValue(t.value, format))),
   );
 }
 
@@ -154,17 +155,17 @@ function themedRow(first: Token, themes: ThemeModel[], format: Settings['colorFo
     'tr',
     { class: broken ? 'broken' : undefined },
     h('td', { class: 'name' }, h('code', null, first.id)),
-    h('td', { class: 'type' }, first.type ?? h('em', null, 'none')),
+    h('td', { class: 'type' }, first.type ?? h('em', { 'data-tip': TIP.noType }, 'none')),
     per.map((t) =>
       h(
         'td',
         { class: 'resolved' },
         !t
-          ? h('em', null, 'not in this theme')
+          ? h('em', { 'data-tip': TIP.notInTheme }, 'not in this theme')
           : [
-              t.aliasOf ? h('code', { class: 'alias' }, `→ {${t.aliasOf}}`) : null,
+              t.aliasOf ? h('code', { class: 'alias', 'data-tip': TIP.alias }, `→ {${t.aliasOf}}`) : null,
               t.aliasOf ? h('br') : null,
-              t.resolution === 'broken' ? h('em', null, 'unresolved') : h('code', null, formatValue(t.value, format)),
+              t.resolution === 'broken' ? h('em', { 'data-tip': TIP.unresolved }, 'unresolved') : h('code', null, formatValue(t.value, format)),
             ],
       ),
     ),

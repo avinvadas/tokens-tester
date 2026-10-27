@@ -7,6 +7,7 @@ import type { Palette, PaletteSet } from '../palette/detect';
 import { setContrastEnd, updateSettings } from '../state/app';
 import type { ContrastView } from '../state/contrast';
 import { h, masked } from './dom';
+import { levelTip, TIP } from './tips';
 
 /** UI pieces for contrast: target toggles, end pickers, per-swatch scores, pass ranges, step distance, parity. */
 
@@ -21,6 +22,7 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
         type: 'button',
         class: `chip-toggle${on ? ' on' : ''}`,
         'aria-pressed': String(on),
+        'data-tip': TIP.targets[t],
         onclick: () => updateSettings({ contrast: on ? settings.contrast.filter((x) => x !== t) : [...settings.contrast, t] }),
       },
       label,
@@ -34,7 +36,7 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
       list.map((c) => h('option', { value: c.id, selected: c.id === view.ends[end].name }, c.id)),
     );
     select.addEventListener('change', () => setContrastEnd(end, select.value));
-    return h('label', { class: 'end-picker' }, h('span', null, `${END_LABEL[end]}:`), masked(select));
+    return h('label', { class: 'end-picker', 'data-tip': TIP.endPicker }, h('span', null, `${END_LABEL[end]}:`), masked(select));
   };
   return h(
     'div',
@@ -59,9 +61,10 @@ export function swatchContrast(scores: Scores | undefined, levels: Level[]) {
       metrics.map((m) => {
         const v = scores[end][m] ?? 0;
         const best = bestLevel(v, m, levels);
+        const tip = [end === 'light' ? TIP.endLight : TIP.endDark, m === 'wcag' ? TIP.wcagValue : TIP.apcaValue, best ? levelTip(best) : TIP.noLevel].join(' ');
         return h(
           'span',
-          { class: `score ${best ? 'pass' : 'fail'}` },
+          { class: `score ${best ? 'pass' : 'fail'}`, 'data-tip': tip },
           h('span', { class: 'end', 'aria-label': end === 'light' ? 'on the light end' : 'on the dark end' }, end === 'light' ? '◻' : '◼'),
           h('span', { class: 'v' }, formatContrast(v, m)),
           h('span', { class: 'lvl' }, best?.badge ?? '–'),
@@ -79,7 +82,7 @@ export function paletteContrast(p: Palette, r: PaletteContrast | undefined, view
       const range = r.ranges.find((x) => x.end === end && x.level.id === level.id)!;
       const text = range.from ? (range.from === range.to ? range.from : `${range.from}–${range.to}`) : 'none';
       const stray = range.stray.length ? ` (also ${range.stray.join(', ')})` : '';
-      return h('span', { class: `range ${range.from ? 'pass' : 'fail'}` }, h('b', null, level.short), ` ${text}${stray}`);
+      return h('span', { class: `range ${range.from ? 'pass' : 'fail'}`, 'data-tip': `${levelTip(level)} ${TIP.range}` }, h('b', null, level.short), ` ${text}${stray}`);
     });
 
   const distances = r.distances.map((d) =>
@@ -99,12 +102,12 @@ export function paletteContrast(p: Palette, r: PaletteContrast | undefined, view
       'div',
       { class: 'palette-contrast' },
       (['light', 'dark'] as const).map((end) =>
-        h('p', { class: 'ranges' }, h('span', { class: 'on' }, `On ${view.ends[end].name}:`), rangeText(end)),
+        h('p', { class: 'ranges' }, h('span', { class: 'on', 'data-tip': TIP.rangeOn }, `On ${view.ends[end].name}:`), rangeText(end)),
       ),
       h(
         'details',
         { class: 'distance' },
-        h('summary', null, 'Step distance within this scale'),
+        h('summary', { 'data-tip': TIP.stepDistance }, 'Step distance within this scale'),
         h('ul', null, distances),
         h(
           'div',
@@ -112,7 +115,7 @@ export function paletteContrast(p: Palette, r: PaletteContrast | undefined, view
           h(
             'table',
             { class: 'nearest' },
-            h('thead', null, h('tr', null, h('th', null, 'Step'), view.levels.map((l) => h('th', null, `Nearest ${l.short}`)))),
+            h('thead', null, h('tr', null, h('th', null, 'Step'), view.levels.map((l) => h('th', { 'data-tip': TIP.nearest }, `Nearest ${l.short}`)))),
             h(
               'tbody',
               null,
@@ -151,7 +154,7 @@ export function parityPanel(view: ContrastView, palettes: Palette[]) {
             rows.map((row) =>
               h(
                 'li',
-                { class: 'warning' },
+                { class: 'warning', 'data-tip': TIP.parity },
                 h('b', null, `On ${view.ends[row.end].name} · ${row.level.short}: `),
                 row.majority ? `most palettes pass from ${row.majority}; ` : 'most palettes never pass; ',
                 row.outliers.map((o) => `${o.id} ${o.from ? `from ${o.from}` : 'never'}`).join(', '),

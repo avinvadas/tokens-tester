@@ -10,6 +10,7 @@ import { displayGamut, paintAll, swatchCanvas } from './canvas';
 import { contrastControls, paletteContrast, parityPanel, swatchContrast } from './contrast';
 import { openCurveEditor } from './curve-editor';
 import { h, masked, plural } from './dom';
+import { flagTip, TIP } from './tips';
 
 const DIRECTION = { 'light-to-dark': 'light → dark', 'dark-to-light': 'dark → light', flat: 'no lightness order' } as const;
 const FORMATS: { value: Settings['colorFormat']; label: string }[] = [
@@ -82,7 +83,14 @@ export class TTPalettes extends HTMLElement {
       FORMATS.map((f) =>
         h(
           'button',
-          { type: 'button', role: 'radio', 'aria-checked': String(f.value === current), class: f.value === current ? 'on' : undefined, onclick: () => updateSettings({ colorFormat: f.value }) },
+          {
+            type: 'button',
+            role: 'radio',
+            'aria-checked': String(f.value === current),
+            class: f.value === current ? 'on' : undefined,
+            'data-tip': TIP.formats[f.value],
+            onclick: () => updateSettings({ colorFormat: f.value }),
+          },
           f.label,
         ),
       ),
@@ -92,7 +100,7 @@ export class TTPalettes extends HTMLElement {
   private gamutSelect(current: Settings['gamut']) {
     const select = h(
       'select',
-      { 'aria-label': 'Target gamut' },
+      { 'aria-label': 'Target gamut', 'data-tip': TIP.gamut },
       h('option', { value: 'srgb', selected: current === 'srgb' }, 'Target: sRGB'),
       h('option', { value: 'p3', selected: current === 'p3' }, 'Target: Display P3'),
     );
@@ -111,11 +119,11 @@ export class TTPalettes extends HTMLElement {
         'div',
         { class: 'palette-head' },
         masked(h('h3', null, p.name)),
-        h('span', { class: 'meta' }, `${plural(p.swatches.length, 'step')} · ${DIRECTION[p.direction]}`),
-        h('button', { type: 'button', class: 'small edit-curves', onclick: () => openCurveEditor(p.id) }, 'Edit with curves'),
-        h('button', { type: 'button', class: 'ghost small', onclick: () => setPaletteIncluded(p.id, false) }, 'Not a base palette'),
+        h('span', { class: 'meta', 'data-tip': TIP.paletteMeta }, `${plural(p.swatches.length, 'step')} · ${DIRECTION[p.direction]}`),
+        h('button', { type: 'button', class: 'small edit-curves', 'data-tip': TIP.editCurves, onclick: () => openCurveEditor(p.id) }, 'Edit with curves'),
+        h('button', { type: 'button', class: 'ghost small', 'data-tip': TIP.notBase, onclick: () => setPaletteIncluded(p.id, false) }, 'Not a base palette'),
       ),
-      p.flags.length ? masked(h('ul', { class: 'flags' }, p.flags.map((f) => h('li', { class: f.severity }, f.message)))) : null,
+      p.flags.length ? masked(h('ul', { class: 'flags' }, p.flags.map((f) => h('li', { class: f.severity, 'data-tip': flagTip(f) }, f.message)))) : null,
       this.strip(p.swatches, settings, shown, flagged, result, contrast),
       paletteContrast(p, result, contrast),
     );
@@ -136,17 +144,27 @@ export class TTPalettes extends HTMLElement {
         const value = formatColor(s.info, settings.colorFormat);
         const r = lch(s.info);
         const gamutBadge = !s.info.inP3 ? 'out of P3' : !s.info.inSrgb ? 'P3' : '';
+        const mark = flagged.get(s.step);
+        const outside = shown === 'p3' ? !s.info.inP3 : !s.info.inSrgb;
+        const canvasTip = [outside ? TIP.swatchMapped : '', mark ? (mark === 'warning' ? TIP.swatchWarning : TIP.swatchInfo) : ''].filter(Boolean).join(' ');
+        const canvas = swatchCanvas(s.info, shown);
+        if (canvasTip) canvas.dataset.tip = canvasTip;
         return h(
           'div',
-          { class: `swatch${flagged.has(s.step) ? ` flagged ${flagged.get(s.step)}` : ''}` },
-          swatchCanvas(s.info, shown),
+          { class: `swatch${mark ? ` flagged ${mark}` : ''}` },
+          canvas,
           masked(
             h(
               'div',
               { class: 'labels' },
-              h('span', { class: 'step' }, s.step, gamutBadge ? h('span', { class: `gamut ${gamutBadge === 'P3' ? 'p3' : 'out'}` }, gamutBadge) : null),
-              h('code', { class: 'value' }, value.approx ? `≈ ${value.text}` : value.text),
-              h('span', { class: 'lch' }, h('span', null, `L ${r.l}`), h('span', null, `C ${r.c}`), h('span', null, `H ${r.h}`)),
+              h(
+                'span',
+                { class: 'step', 'data-tip': TIP.step },
+                s.step,
+                gamutBadge ? h('span', { class: `gamut ${gamutBadge === 'P3' ? 'p3' : 'out'}`, 'data-tip': gamutBadge === 'P3' ? TIP.gamutP3 : TIP.gamutOut }, gamutBadge) : null,
+              ),
+              h('code', { class: 'value', 'data-tip': value.approx ? TIP.approx : TIP.value }, value.approx ? `≈ ${value.text}` : value.text),
+              h('span', { class: 'lch' }, h('span', { 'data-tip': TIP.l }, `L ${r.l}`), h('span', { 'data-tip': TIP.c }, `C ${r.c}`), h('span', { 'data-tip': TIP.h }, `H ${r.h}`)),
               contrast ? swatchContrast(result?.scores[s.step], contrast.levels) : null,
             ),
           ),
@@ -183,7 +201,7 @@ export class TTPalettes extends HTMLElement {
               null,
               h('code', null, p.name),
               h('span', { class: 'meta' }, ` ${plural(p.swatches.length, 'color')}. ${p.excludedReason ?? 'Excluded by you.'} `),
-              h('button', { type: 'button', class: 'link', onclick: () => setPaletteIncluded(p.id, true) }, 'Treat as base palette'),
+              h('button', { type: 'button', class: 'link', 'data-tip': TIP.treatAsBase, onclick: () => setPaletteIncluded(p.id, true) }, 'Treat as base palette'),
             ),
           ),
         ),

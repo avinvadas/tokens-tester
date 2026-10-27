@@ -3,6 +3,7 @@ import { ALL_THEMES, applyFixes, setActiveTheme, store, undo, type AppState } fr
 import { mergeModels } from '../themes/merge';
 import { h, masked, plural } from './dom';
 import { reloadAll } from './loader';
+import { CATEGORY_TIP, SEVERITY_TIP, TIP } from './tips';
 
 const SEVERITIES: Severity[] = ['error', 'warning', 'info'];
 const SEVERITY_LABEL: Record<Severity, string> = { error: 'Error', warning: 'Warning', info: 'Info' };
@@ -23,7 +24,7 @@ export class TTIssues extends HTMLElement {
   private status = h('span', { class: 'reload-status', role: 'status' });
   private reload = h(
     'button',
-    { type: 'button', class: 'reload', title: 'Read the files again from disk or their URL and re-run the checks' },
+    { type: 'button', class: 'reload', 'data-tip': TIP.reload },
     h('span', { 'aria-hidden': 'true' }, '↻ '),
     'Reload files',
   );
@@ -99,7 +100,7 @@ export class TTIssues extends HTMLElement {
           'h2',
           null,
           'Issues ',
-          h('span', { class: 'counts' }, SEVERITIES.filter(count).map((s) => h('span', { class: `chip ${s}` }, plural(count(s), SEVERITY_LABEL[s].toLowerCase())))),
+          h('span', { class: 'counts' }, SEVERITIES.filter(count).map((s) => h('span', { class: `chip ${s}`, 'data-tip': SEVERITY_TIP[s] }, plural(count(s), SEVERITY_LABEL[s].toLowerCase())))),
         ),
         h('div', { class: 'reload-wrap' }, this.status, this.reload),
       ),
@@ -117,11 +118,11 @@ export class TTIssues extends HTMLElement {
                 h(
                   'div',
                   { class: 'group-head' },
-                  h('h3', null, CATEGORY_LABEL[category], h('span', { class: 'n' }, String(issues.length))),
+                  h('h3', { 'data-tip': CATEGORY_TIP[category] }, CATEGORY_LABEL[category], h('span', { class: 'n', 'data-tip': TIP.groupCount }, String(issues.length))),
                   fixes.length > 1
                     ? h(
                         'button',
-                        { type: 'button', class: 'fix-all', onclick: () => this.apply(fixes, `Fix ${fixes.length} ${CATEGORY_LABEL[category].toLowerCase()} issues`) },
+                        { type: 'button', class: 'fix-all', 'data-tip': TIP.fixAll, onclick: () => this.apply(fixes, `Fix ${fixes.length} ${CATEGORY_LABEL[category].toLowerCase()} issues`) },
                         `Apply ${fixes.length} fixes`,
                       )
                     : null,
@@ -138,23 +139,23 @@ export class TTIssues extends HTMLElement {
     return h(
       'li',
       { class: `issue ${i.severity}` },
-      h('span', { class: `sev ${i.severity}` }, SEVERITY_LABEL[i.severity]),
+      h('span', { class: `sev ${i.severity}`, 'data-tip': SEVERITY_TIP[i.severity] }, SEVERITY_LABEL[i.severity]),
       h(
         'div',
         { class: 'body' },
-        h('span', { class: 'msg' }, i.themes ? h('span', { class: 'theme-tag' }, `${i.themes.join(', ')} only`) : null, i.message),
+        h('span', { class: 'msg' }, i.themes ? h('span', { class: 'theme-tag', 'data-tip': TIP.themeTag }, `${i.themes.join(', ')} only`) : null, i.message),
         fix
           ? h(
               'div',
               { class: 'fix' },
-              h('button', { type: 'button', class: 'fix-btn', onclick: () => this.apply([fix]) }, fix.label),
+              h('button', { type: 'button', class: 'fix-btn', 'data-tip': TIP.fix, onclick: () => this.apply([fix]) }, fix.label),
               fix.preview
-                ? h('span', { class: 'preview' }, h('code', { class: 'before' }, fix.preview.before), h('span', { 'aria-label': 'becomes' }, ' → '), h('code', { class: 'after' }, fix.preview.after))
+                ? h('span', { class: 'preview' }, h('code', { class: 'before', 'data-tip': TIP.fixBefore }, fix.preview.before), h('span', { 'aria-label': 'becomes' }, ' → '), h('code', { class: 'after', 'data-tip': TIP.fixAfter }, fix.preview.after))
                 : null,
             )
           : null,
       ),
-      h('code', { class: 'where' }, where),
+      h('code', { class: 'where', 'data-tip': where ? TIP.where : undefined }, where),
     );
   }
 }

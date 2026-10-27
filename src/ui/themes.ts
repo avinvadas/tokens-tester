@@ -12,6 +12,7 @@ import {
   type AppState,
 } from '../state/app';
 import { h, masked } from './dom';
+import { TIP } from './tips';
 
 const SOURCE: Record<ThemeSource, string> = {
   'tokens-studio': 'Read from the Tokens Studio themes in your files.',
@@ -99,9 +100,9 @@ export class TTThemes extends HTMLElement {
                       'div',
                       { class: 'theme-name' },
                       name,
-                      h('button', { type: 'button', class: 'ghost small danger', 'aria-label': 'Remove theme', onclick: () => removeTheme(t.id) }, '×'),
+                      h('button', { type: 'button', class: 'ghost small danger', 'aria-label': 'Remove theme', 'data-tip': TIP.removeTheme, onclick: () => removeTheme(t.id) }, '×'),
                     ),
-                    t.scope.mode !== undefined ? h('small', null, `mode “${t.scope.mode}”`) : null,
+                    t.scope.mode !== undefined ? h('small', { 'data-tip': TIP.themeMode }, `mode “${t.scope.mode}”`) : null,
                   );
                 }),
               ),
@@ -115,10 +116,10 @@ export class TTThemes extends HTMLElement {
                   null,
                   h('td', { class: 'file-name' }, f.name),
                   v.themes.map((t) => {
-                    const box = h('input', { type: 'checkbox', checked: t.fileIds.includes(f.id), 'aria-label': 'Read this file in this theme' });
+                    const box = h('input', { type: 'checkbox', checked: t.fileIds.includes(f.id), 'aria-label': 'Read this file in this theme', 'data-tip': TIP.themeFile });
                     box.addEventListener('change', () => setThemeFile(t.id, f.id, box.checked));
                     const sets = t.scope.sets?.[f.id];
-                    return h('td', null, box, sets ? h('small', null, ` sets: ${sets.join(', ') || 'none'}`) : null);
+                    return h('td', null, box, sets ? h('small', { 'data-tip': TIP.themeSets }, ` sets: ${sets.join(', ') || 'none'}`) : null);
                   }),
                 ),
               ),
@@ -129,8 +130,8 @@ export class TTThemes extends HTMLElement {
               h(
                 'tr',
                 null,
-                h('td', null, 'Errors'),
-                v.themes.map((t) => h('td', { class: counts.get(t.id) ? 'bad' : 'good' }, String(counts.get(t.id) ?? 0))),
+                h('td', { 'data-tip': TIP.themeErrors }, 'Errors'),
+                v.themes.map((t) => h('td', { class: counts.get(t.id) ? 'bad' : 'good', 'data-tip': TIP.themeErrors }, String(counts.get(t.id) ?? 0))),
               ),
             ),
           ),
@@ -154,6 +155,7 @@ export class TTThemes extends HTMLElement {
               role: 'radio',
               'aria-checked': String(o.id === v.activeTheme),
               class: o.id === v.activeTheme ? 'on' : undefined,
+              'data-tip': o.id === ALL_THEMES ? TIP.allThemes : TIP.oneTheme,
               onclick: () => setActiveTheme(o.id),
             },
             o.name,

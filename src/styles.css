@@ -385,3 +385,21 @@ dialog.curve-editor .ok { color: var(--ok); font-size: 0.85rem; margin: 4px 0; }
 .mini .swatch-canvas { height: 16px; border-radius: 4px; }
 .ce-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; position: sticky; bottom: 0; background: var(--surface); padding: 12px 0 14px; margin-top: 16px; border-top: 1px solid var(--border); }
 .ce-foot .spacer { flex: 1; }
+
+/* Tooltips (see ui/tooltip.ts) */
+[data-tip]:not(button, select, input, summary, label) { cursor: help; }
+.tooltip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}

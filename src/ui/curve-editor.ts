@@ -29,6 +29,7 @@ import { displayGamut, paintAll, swatchCanvas } from './canvas';
 import { swatchContrast } from './contrast';
 import { CurveCanvas } from './curve-canvas';
 import { h, masked, plural } from './dom';
+import { CURVE_TIP, flagTip } from './tips';
 
 /**
  * Batch-edit a palette with lightness, chroma and hue curves around an
@@ -58,7 +59,7 @@ class CurveEditor {
   private anchorInputs!: Record<'l' | 'c' | 'h', HTMLInputElement>;
   private anchorSwatch = h('span', { class: 'ce-anchor-swatch' });
   private anchorSelect!: HTMLSelectElement;
-  private applyButton = h('button', { type: 'button', class: 'primary' }, 'Apply');
+  private applyButton = h('button', { type: 'button', class: 'primary', 'data-tip': CURVE_TIP.apply }, 'Apply');
   private undoButton = h('button', { type: 'button' }, 'Undo');
   private redoButton = h('button', { type: 'button' }, 'Redo');
   private notes = h('ul', { class: 'flags ce-notes' });
@@ -190,7 +191,7 @@ class CurveEditor {
         { class: 'ce-foot' },
         this.undoButton,
         this.redoButton,
-        h('button', { type: 'button', onclick: () => this.set(initialState(this.p, this.s.anchor), true) }, 'Reset'),
+        h('button', { type: 'button', 'data-tip': CURVE_TIP.reset, onclick: () => this.set(initialState(this.p, this.s.anchor), true) }, 'Reset'),
         h('span', { class: 'spacer' }),
         h('button', { type: 'button', onclick: close }, 'Cancel'),
         this.applyButton,
@@ -207,7 +208,7 @@ class CurveEditor {
     );
     this.anchorSelect.addEventListener('change', () => this.set(setAnchorStep(this.p, this.s, Number(this.anchorSelect.value)), true));
     const input = (ch: 'l' | 'c' | 'h', label: string, min: number, max: number, step: number) => {
-      const el = h('input', { type: 'number', min, max, step, 'aria-label': `Anchor ${label}` });
+      const el = h('input', { type: 'number', min, max, step, 'aria-label': `Anchor ${label}`, 'data-tip': { l: CURVE_TIP.anchorL, c: CURVE_TIP.anchorC, h: CURVE_TIP.anchorH }[ch] });
       el.addEventListener('change', () => {
         const raw = Number(el.value);
         if (!Number.isFinite(raw)) return;
@@ -220,7 +221,7 @@ class CurveEditor {
     return h(
       'div',
       { class: 'ce-anchor' },
-      h('label', null, 'Anchor step ', this.anchorSelect),
+      h('label', { 'data-tip': CURVE_TIP.anchor }, 'Anchor step ', this.anchorSelect),
       this.anchorSwatch,
       h('label', null, 'L ', this.anchorInputs.l),
       h('label', null, 'C ', this.anchorInputs.c),
@@ -270,7 +271,7 @@ class CurveEditor {
         'div',
         { class: 'ce-curve-head' },
         h('h3', null, label),
-        h('div', { class: 'chips' }, presets.map(([name, fn]) => h('button', { type: 'button', class: 'chip-toggle', onclick: fn }, name))),
+        h('div', { class: 'chips' }, presets.map(([name, fn]) => h('button', { type: 'button', class: 'chip-toggle', 'data-tip': CURVE_TIP.presets[name], onclick: fn }, name))),
         extra,
       ),
       canvas.el,
@@ -282,7 +283,7 @@ class CurveEditor {
     return h(
       'span',
       { class: 'ce-inline' },
-      h('button', { type: 'button', class: 'chip-toggle', onclick: () => this.set(presetH(this.p, this.s, 'shift', Number(deg.value) || 0), true) }, 'Shift'),
+      h('button', { type: 'button', class: 'chip-toggle', 'data-tip': CURVE_TIP.shift, onclick: () => this.set(presetH(this.p, this.s, 'shift', Number(deg.value) || 0), true) }, 'Shift'),
       deg,
       h('span', { class: 'meta' }, '° from the anchor toward the last step (opposite toward the first)'),
     );
@@ -293,7 +294,7 @@ class CurveEditor {
     const levels = view.levels.length ? view.levels : [];
     const details = h('details', { class: 'ce-contrast' });
     if (!levels.length) {
-      details.append(h('summary', null, 'Contrast-targeted…'), h('p', { class: 'meta' }, 'Turn on a contrast target in the palette view to use this.'));
+      details.append(h('summary', { 'data-tip': CURVE_TIP.contrast }, 'Contrast-targeted…'), h('p', { class: 'meta' }, 'Turn on a contrast target in the palette view to use this.'));
       return details;
     }
     const levelSelect = h('select', { 'aria-label': 'Contrast level' }, levels.map((l, i) => h('option', { value: String(i) }, l.label)));
@@ -321,14 +322,14 @@ class CurveEditor {
       this.set(state, true);
     };
     details.append(
-      h('summary', null, 'Contrast-targeted…'),
+      h('summary', { 'data-tip': CURVE_TIP.contrast }, 'Contrast-targeted…'),
       h(
         'div',
         { class: 'ce-inline' },
         levelSelect,
         h('label', null, ` first passes on ${view.ends.light.name} at `, light),
         h('label', null, ` last passes on ${view.ends.dark.name} at `, dark),
-        h('button', { type: 'button', onclick: run }, 'Solve'),
+        h('button', { type: 'button', 'data-tip': CURVE_TIP.solve, onclick: run }, 'Solve'),
       ),
       h('p', { class: 'meta' }, 'Sets those steps’ lightness so they just pass, keeping chroma and hue; the rest of the curve runs smoothly through the ends and the anchor.'),
     );
@@ -379,11 +380,11 @@ class CurveEditor {
       h(
         'div',
         { class: 'ce-strip' },
-        h('span', { class: 'ce-strip-label' }, label),
+        h('span', { class: 'ce-strip-label', 'data-tip': label === 'Before' ? CURVE_TIP.before : CURVE_TIP.after }, label),
         h(
           'div',
           { class: 'swatches', style: `--n: ${infos.length}` },
-          infos.map((info, i) => h('div', { class: `swatch${gen[i]!.mapped ? ' flagged warning' : ''}` }, swatchCanvas(info, this.shown), h('div', { class: 'labels' }, h('span', { class: 'step' }, p.swatches[i]!.step), extra?.(i) ?? null))),
+          infos.map((info, i) => h('div', { class: `swatch${gen[i]!.mapped ? ' flagged warning' : ''}`, 'data-tip': gen[i]!.mapped ? CURVE_TIP.mapped : undefined }, swatchCanvas(info, this.shown), h('div', { class: 'labels' }, h('span', { class: 'step' }, p.swatches[i]!.step), extra?.(i) ?? null))),
         ),
       );
     return h(
@@ -394,15 +395,15 @@ class CurveEditor {
         const r = lch(gen[i]!.info);
         return h('div', null, h('span', { class: 'lch' }, h('span', null, `L ${r.l}`), h('span', null, `C ${r.c}`)), scores ? swatchContrast(scores[p.swatches[i]!.step], view.levels) : null);
       }),
-      flags.length ? h('ul', { class: 'flags' }, flags.map((f: ScaleFlag) => h('li', { class: f.severity }, f.message))) : h('p', { class: 'ok' }, 'The result passes the scale checks.'),
+      flags.length ? h('ul', { class: 'flags' }, flags.map((f: ScaleFlag) => h('li', { class: f.severity, 'data-tip': flagTip(f) }, f.message))) : h('p', { class: 'ok' }, 'The result passes the scale checks.'),
     );
   }
 
   private batchControls(batch: { palette: Palette; gen: GenStep[] }[]) {
-    const mode = (value: CurveState['lightness'], label: string) => {
+    const mode = (value: CurveState['lightness'], label: string, tip: string) => {
       const r = h('input', { type: 'radio', name: 'ce-lightness', value, checked: this.s.lightness === value });
       r.addEventListener('change', () => this.set({ ...this.s, lightness: value }, true));
-      return h('label', null, r, ` ${label}`);
+      return h('label', { 'data-tip': tip }, r, ` ${label}`);
     };
     return h(
       'div',
@@ -411,8 +412,8 @@ class CurveEditor {
         'div',
         { class: 'ce-inline' },
         h('span', { class: 'meta' }, 'Lightness: '),
-        mode('match', 'same as this palette at each step (equal contrast across palettes)'),
-        mode('relative', 'shifted with each palette’s own anchor'),
+        mode('match', 'same as this palette at each step (equal contrast across palettes)', CURVE_TIP.match),
+        mode('relative', 'shifted with each palette’s own anchor', CURVE_TIP.relative),
       ),
       h('p', { class: 'meta' }, 'Chroma scales and hue turns with each palette’s own anchor color.'),
       h(
