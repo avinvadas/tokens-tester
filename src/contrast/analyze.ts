@@ -173,11 +173,20 @@ export function parity(palettes: readonly Palette[], results: ReadonlyMap<string
 
 /** The step where passing begins, seen from the failing side. */
 export function boundary(p: Palette, r: PaletteContrast, end: EndId, level: Level): string | undefined {
+  return passPoint(p, r, end, level)?.step;
+}
+
+/**
+ * The boundary step and the side of it the failing steps lie on: `start` when
+ * the passing run reaches the last step (failures are before it), `end` when
+ * it starts at the first step.
+ */
+export function passPoint(p: Palette, r: PaletteContrast, end: EndId, level: Level): { step: string; side: 'start' | 'end' } | undefined {
   const range = r.ranges.find((x) => x.end === end && x.level.id === level.id);
   if (!range?.from) return undefined;
   const first = p.swatches[0]!.info.oklch.l;
   const last = p.swatches.at(-1)!.info.oklch.l;
   const darkAtEnd = last <= first;
   const runAtEnd = end === 'light' ? darkAtEnd : !darkAtEnd;
-  return runAtEnd ? range.from : range.to;
+  return runAtEnd ? { step: range.from, side: 'start' } : { step: range.to!, side: 'end' };
 }

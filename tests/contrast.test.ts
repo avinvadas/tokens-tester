@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { colorInfo } from '../src/color/format';
-import { analyzePalette, boundary, parity } from '../src/contrast/analyze';
+import { analyzePalette, boundary, parity, passPoint } from '../src/contrast/analyze';
 import { defaultEnds, endCandidates, resolveEnds } from '../src/contrast/ends';
 import { bestLevel, levelsFor } from '../src/contrast/levels';
 import { contrast, pairContrast } from '../src/contrast/metrics';
@@ -91,6 +91,8 @@ describe('pass ranges', () => {
   it('reports the boundary step where passing begins', () => {
     expect(boundary(neutral, r, 'light', AA[0]!)).toBe('300');
     expect(boundary(neutral, r, 'dark', AA[0]!)).toBe('300');
+    expect(passPoint(neutral, r, 'light', AA[0]!)).toEqual({ step: '300', side: 'start' });
+    expect(passPoint(neutral, r, 'dark', AA[0]!)).toEqual({ step: '300', side: 'end' });
   });
 
   it('scores every step against both ends', () => {

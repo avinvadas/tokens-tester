@@ -1,5 +1,5 @@
-import { lch, type ColorInfo, type Gamut } from '../color/format';
-import { analyzePalette, type EndId } from '../contrast/analyze';
+import type { ColorInfo, Gamut } from '../color/format';
+import type { EndId } from '../contrast/analyze';
 import {
   anchorT,
   C_MAX,
@@ -20,31 +20,38 @@ import {
   type GenStep,
 } from '../curves/model';
 import type { Model } from '../model/types';
-import { checkPalettes, type ScaleFlag } from '../palette/checks';
 import type { Palette } from '../palette/detect';
 import { allModels, applyEdits, store } from '../state/app';
 import { contrastOf } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
+import { clearPreview, setPreview } from '../state/preview';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
-import { swatchContrast } from './contrast';
 import { CurveCanvas } from './curve-canvas';
 import { h, masked, plural } from './dom';
-import { CURVE_TIP, flagTip } from './tips';
+import { CURVE_TIP } from './tips';
 
 /**
- * Batch-edit a palette with lightness, chroma and hue curves around an
- * anchor color. Nothing is written until Apply; the whole edit (this palette
- * and any batch palettes) is then one undoable step.
+ * Edit a whole palette row with lightness, chroma and hue curves around an
+ * anchor color. The panel is non-modal and docked under the grid: every
+ * change is drawn live on the row itself (and on any batch rows) through the
+ * preview store, so the effect is judged in the system. Nothing is written
+ * until Apply, which makes the whole edit one undoable step; Revert drops it.
  */
+let current: CurveEditor | undefined;
+
 export function openCurveEditor(paletteId: string) {
+  current?.dialog.close();
   const state = store.get();
   const set = palettesOf(state);
   const palette = set.palettes.find((p) => p.id === paletteId);
   if (!palette) return;
   const editor = new CurveEditor(palette, set.palettes.filter((p) => p.included && p.id !== paletteId), state.settings.gamut);
+  current = editor;
   document.body.append(editor.dialog);
-  editor.dialog.showModal();
+  document.body.classList.add('curves-open');
+  editor.dialog.show();
   editor.redraw();
+  requestAnimationFrame(() => document.querySelector(`.row-head[data-palette="${CSS.escape(paletteId)}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
 }
 
 class CurveEditor {
@@ -53,7 +60,7 @@ class CurveEditor {
   private history: CurveState[] = [];
   private future: CurveState[] = [];
   private canvases: CurveCanvas[] = [];
-  private preview = h('div', { class: 'ce-preview' });
+  private mappedNote = h('p', { class: 'meta ce-mapped' });
   private batchBox = h('div', { class: 'ce-batch' });
   private impact = h('div', { class: 'ce-impact' });
   private anchorInputs!: Record<'l' | 'c' | 'h', HTMLInputElement>;
@@ -77,6 +84,14 @@ class CurveEditor {
     this.dialog.addEventListener('close', () => {
       this.resize.disconnect();
       this.dialog.remove();
+      if (current === this) {
+        current = undefined;
+        clearPreview();
+        document.body.classList.remove('curves-open');
+      }
+    });
+    this.dialog.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.dialog.close();
     });
     this.resize.observe(this.dialog);
   }
@@ -160,14 +175,17 @@ class CurveEditor {
         'header',
         { class: 'ce-head' },
         h('h2', null, 'Curves: ', h('code', null, this.p.name)),
-        h('button', { type: 'button', class: 'ghost', onclick: close, 'aria-label': 'Close without applying' }, '✕'),
+        h('span', { class: 'meta' }, 'The row above shows the result live.'),
+        h('span', { class: 'spacer' }),
+        h('button', { type: 'button', class: 'ghost', onclick: close, 'aria-label': 'Revert and close', 'data-tip': CURVE_TIP.revert }, '✕'),
       ),
       h(
         'p',
         { class: 'meta' },
-        'Each curve runs across the steps and passes through the anchor (◆). Drag handles, double-click to add or remove one. Hollow dots are the current colors, filled dots the result. Nothing changes in your files until you apply.',
+        'Each curve runs across the steps and passes through the anchor (◆). Drag handles, double-click to add or remove one. Hollow dots are the current colors, filled dots the result.',
       ),
       this.anchorRow(),
+      h('div', { class: 'ce-curves' },
       this.curveBlock('l', 'Lightness', [
         ['Current', () => this.set(presetL(this.p, this.s, 'current'), true)],
         ['Linear', () => this.set(presetL(this.p, this.s, 'linear'), true)],
@@ -182,8 +200,9 @@ class CurveEditor {
         ['Current', () => this.set(presetH(this.p, this.s, 'current'), true)],
         ['Constant', () => this.set(presetH(this.p, this.s, 'constant'), true)],
       ], this.hueShift()),
+      ),
       this.notes,
-      h('section', null, h('h3', null, 'Preview'), this.preview),
+      this.mappedNote,
       this.others.length ? h('section', null, h('h3', null, 'Apply to more palettes'), this.batchBox) : '',
       h('section', null, h('h3', null, 'Semantic tokens affected'), this.impact),
       h(
@@ -193,7 +212,7 @@ class CurveEditor {
         this.redoButton,
         h('button', { type: 'button', 'data-tip': CURVE_TIP.reset, onclick: () => this.set(initialState(this.p, this.s.anchor), true) }, 'Reset'),
         h('span', { class: 'spacer' }),
-        h('button', { type: 'button', onclick: close }, 'Cancel'),
+        h('button', { type: 'button', onclick: close, 'data-tip': CURVE_TIP.revert }, 'Revert'),
         this.applyButton,
       ),
     );
@@ -360,46 +379,18 @@ class CurveEditor {
     this.applyButton.textContent = edits.length ? `Apply ${plural(edits.length, 'change')}` : 'Apply';
     this.applyButton.disabled = edits.length === 0;
     this.anchorSwatch.replaceChildren(swatchCanvas(g.source[this.s.anchor]!.info, this.shown));
-    this.preview.replaceChildren(this.comparison(this.p, g.source));
+    setPreview(new Map([[this.p.id, g.source.map((x) => x.info)], ...g.batch.map((b) => [b.palette.id, b.gen.map((x) => x.info)] as const)]));
+    const mapped = g.source.filter((x) => x.mapped).length + g.batch.reduce((n, b) => n + b.gen.filter((x) => x.mapped).length, 0);
+    this.mappedNote.textContent = mapped ? `${plural(mapped, 'color')} asked for by the curves ${mapped === 1 ? 'is' : 'are'} outside the gamut and mapped down (ringed dots on the chroma curve).` : '';
     if (full) {
-      this.batchBox.replaceChildren(this.batchControls(g.batch));
+      this.batchBox.replaceChildren(this.batchControls());
       this.impact.replaceChildren(this.semanticImpact(g));
     }
     for (const c of this.canvases) c.draw();
     paintAll(this.dialog);
   }
 
-  /** Before and after strips with the result's contrast and scale checks. */
-  private comparison(p: Palette, gen: GenStep[]) {
-    const view = contrastOf(store.get());
-    const after: Palette = { ...p, swatches: p.swatches.map((sw, i) => ({ ...sw, info: gen[i]!.info })), flags: [], direction: 'flat' };
-    checkPalettes([after], this.gamut);
-    const scores = view.levels.length ? analyzePalette(after, view.ends, view.levels).scores : undefined;
-    const flags = after.flags.filter((f) => f.kind !== 'missing-steps');
-    const strip = (infos: ColorInfo[], label: string, extra?: (i: number) => Node | null) =>
-      h(
-        'div',
-        { class: 'ce-strip' },
-        h('span', { class: 'ce-strip-label', 'data-tip': label === 'Before' ? CURVE_TIP.before : CURVE_TIP.after }, label),
-        h(
-          'div',
-          { class: 'swatches', style: `--n: ${infos.length}` },
-          infos.map((info, i) => h('div', { class: `swatch${gen[i]!.mapped ? ' flagged warning' : ''}`, 'data-tip': gen[i]!.mapped ? CURVE_TIP.mapped : undefined }, swatchCanvas(info, this.shown), h('div', { class: 'labels' }, h('span', { class: 'step' }, p.swatches[i]!.step), extra?.(i) ?? null))),
-        ),
-      );
-    return h(
-      'div',
-      null,
-      strip(p.swatches.map((s) => s.info), 'Before'),
-      strip(gen.map((x) => x.info), 'After', (i) => {
-        const r = lch(gen[i]!.info);
-        return h('div', null, h('span', { class: 'lch' }, h('span', null, `L ${r.l}`), h('span', null, `C ${r.c}`)), scores ? swatchContrast(scores[p.swatches[i]!.step], view.levels) : null);
-      }),
-      flags.length ? h('ul', { class: 'flags' }, flags.map((f: ScaleFlag) => h('li', { class: f.severity, 'data-tip': flagTip(f) }, f.message))) : h('p', { class: 'ok' }, 'The result passes the scale checks.'),
-    );
-  }
-
-  private batchControls(batch: { palette: Palette; gen: GenStep[] }[]) {
+  private batchControls() {
     const mode = (value: CurveState['lightness'], label: string, tip: string) => {
       const r = h('input', { type: 'radio', name: 'ce-lightness', value, checked: this.s.lightness === value });
       r.addEventListener('change', () => this.set({ ...this.s, lightness: value }, true));
@@ -424,8 +415,7 @@ class CurveEditor {
           box.addEventListener('change', () =>
             this.set({ ...this.s, batch: box.checked ? [...this.s.batch, o.id] : this.s.batch.filter((id) => id !== o.id) }, true),
           );
-          const b = batch.find((x) => x.palette.id === o.id);
-          return h('li', null, h('label', null, box, ' ', h('code', null, o.name)), b ? this.comparison(o, b.gen) : null);
+          return h('li', null, h('label', null, box, ' ', h('code', null, o.name)));
         }),
       ),
     );

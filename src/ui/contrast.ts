@@ -1,15 +1,14 @@
-import type { EndId, PaletteContrast, Scores } from '../contrast/analyze';
+import type { EndId, PaletteContrast } from '../contrast/analyze';
 import { endCandidates, type EndCandidate } from '../contrast/ends';
-import { bestLevel, metricsFor, TARGETS, type ContrastTarget, type Level } from '../contrast/levels';
-import { formatContrast } from '../contrast/metrics';
+import { TARGETS, type ContrastTarget } from '../contrast/levels';
 import type { Settings } from '../model/types';
 import type { Palette, PaletteSet } from '../palette/detect';
 import { setContrastEnd, updateSettings } from '../state/app';
 import type { ContrastView } from '../state/contrast';
 import { h, masked } from './dom';
-import { levelTip, TIP } from './tips';
+import { TIP } from './tips';
 
-/** UI pieces for contrast: target toggles, end pickers, per-swatch scores, pass ranges, step distance, parity. */
+/** UI pieces for contrast: target toggles, end pickers, step distance, parity. */
 
 const END_LABEL: Record<EndId, string> = { light: 'Light end', dark: 'Dark end' };
 
@@ -45,45 +44,14 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
     h('div', { class: 'chips', role: 'group', 'aria-label': 'Contrast compliance targets' }, TARGETS.map((t) => toggle(t.id, t.label))),
     settings.contrast.length ? [picker('light', candidates.light), picker('dark', candidates.dark)] : null,
     settings.contrast.length
-      ? h('span', { class: 'legend' }, 'Each swatch shows its contrast as text on ◻ the light end and ◼ the dark end, with the strictest level it passes.')
+      ? h('span', { class: 'legend' }, 'Under each palette, one row per end marks where each level is first reached when the steps are used as text on it.')
       : null,
   );
 }
 
-/** Contrast of one swatch against both ends, with the strictest level it passes. */
-export function swatchContrast(scores: Scores | undefined, levels: Level[]) {
-  if (!scores || !levels.length) return null;
-  const metrics = metricsFor(levels);
-  return h(
-    'div',
-    { class: 'contrast-cell' },
-    (['light', 'dark'] as const).flatMap((end) =>
-      metrics.map((m) => {
-        const v = scores[end][m] ?? 0;
-        const best = bestLevel(v, m, levels);
-        const tip = [end === 'light' ? TIP.endLight : TIP.endDark, m === 'wcag' ? TIP.wcagValue : TIP.apcaValue, best ? levelTip(best) : TIP.noLevel].join(' ');
-        return h(
-          'span',
-          { class: `score ${best ? 'pass' : 'fail'}`, 'data-tip': tip },
-          h('span', { class: 'end', 'aria-label': end === 'light' ? 'on the light end' : 'on the dark end' }, end === 'light' ? '◻' : '◼'),
-          h('span', { class: 'v' }, formatContrast(v, m)),
-          h('span', { class: 'lvl' }, best?.badge ?? '–'),
-        );
-      }),
-    ),
-  );
-}
-
-/** Pass ranges per end and level, plus the step-distance rule, for one palette. */
+/** The step-distance rule for one palette. Where each step passes is shown in the rails. */
 export function paletteContrast(p: Palette, r: PaletteContrast | undefined, view: ContrastView) {
   if (!r || !view.levels.length) return null;
-  const rangeText = (end: EndId) =>
-    view.levels.map((level) => {
-      const range = r.ranges.find((x) => x.end === end && x.level.id === level.id)!;
-      const text = range.from ? (range.from === range.to ? range.from : `${range.from}–${range.to}`) : 'none';
-      const stray = range.stray.length ? ` (also ${range.stray.join(', ')})` : '';
-      return h('span', { class: `range ${range.from ? 'pass' : 'fail'}`, 'data-tip': `${levelTip(level)} ${TIP.range}` }, h('b', null, level.short), ` ${text}${stray}`);
-    });
 
   const distances = r.distances.map((d) =>
     h(
@@ -101,9 +69,6 @@ export function paletteContrast(p: Palette, r: PaletteContrast | undefined, view
     h(
       'div',
       { class: 'palette-contrast' },
-      (['light', 'dark'] as const).map((end) =>
-        h('p', { class: 'ranges' }, h('span', { class: 'on', 'data-tip': TIP.rangeOn }, `On ${view.ends[end].name}:`), rangeText(end)),
-      ),
       h(
         'details',
         { class: 'distance' },

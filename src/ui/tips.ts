@@ -60,7 +60,7 @@ export const TIP = {
 
   // Palettes
   paletteMeta: 'Number of steps, and whether lightness goes from light to dark, dark to light, or has no clear order.',
-  editCurves: 'Reshape this palette with lightness, chroma and hue curves. Nothing changes until you apply.',
+  editCurves: 'Reshape this whole row with lightness, chroma and hue curves. The row previews live; nothing changes in your files until you apply.',
   notBase: 'Hide this group from the palette checks, for example when it is a set of one-off colors.',
   treatAsBase: 'Show this group as a palette and run the scale and contrast checks on it.',
   formats: {
@@ -77,9 +77,9 @@ export const TIP = {
   l: 'L: perceived lightness, from 0 (black) to 100 (white).',
   c: 'C: chroma, how colorful it is. 0 is gray; around 0.37 is the most saturated a screen can show.',
   h: 'H: hue angle in degrees (about 30 red, 100 yellow, 145 green, 265 blue).',
-  swatchMapped: 'Corner triangle: this color is outside the target gamut, so it is drawn mapped into it and is not exact.',
-  swatchWarning: 'Solid outline: a warning above mentions this step.',
-  swatchInfo: 'Dashed outline: a note above mentions this step.',
+  gamutOutSrgb: 'Outside sRGB, the target gamut: it is drawn mapped into sRGB, so screens show something other than the file. Switch the target to Display P3 if that is intended.',
+  deltaL: 'Lightness difference between these two neighbouring steps (0–100 scale).',
+  scaleRail: 'How each step relates to the next one: the lightness difference, or the problem with that pair.',
   flagWarning: 'Warning: likely a mistake in the scale.',
   flagInfo: 'Note: worth a look, but may be intended.',
 
@@ -95,8 +95,10 @@ export const TIP = {
   wcagValue: 'WCAG contrast ratio, from 1 (none) to 21 (black on white).',
   apcaValue: 'APCA lightness contrast (Lc), from 0 to about 106. Higher is easier to read.',
   noLevel: '– means it passes none of the selected levels.',
-  rangeOn: 'Which steps pass each level when used as text on this color.',
-  range: 'The run of steps that pass this level. “also” lists passing steps outside the run; “none” means no step passes.',
+  rangeOn: 'Where each selected level is first reached when the steps are used as text on this color.',
+  passPoint: 'The heavy edge is the pass point: from here on, steps reach this level as text on this background; on the other side of the edge they do not.',
+  missingStep: 'Missing step: other palettes in this system have it, this one does not.',
+  previewRow: 'This row shows an unapplied curve edit. Apply or revert it in the curves panel.',
   stepDistance: 'How many steps apart two colors of this scale must be for one to be readable on the other.',
   nearest: 'For each step, the closest step that passes this level against it.',
   parity: 'Steps where this palette starts passing differ from most other palettes.',
@@ -119,13 +121,11 @@ export const CURVE_TIP = {
   shift: 'Turn the hue gradually by this many degrees from the anchor toward the last step.',
   contrast: 'Solve lightness so chosen steps just pass a contrast level on the light and dark ends.',
   solve: 'Set those steps’ lightness so they just pass, then smooth the curve through them.',
-  before: 'The palette as it is in your file.',
-  after: 'The palette with these curves applied.',
-  mapped: 'Outlined: the curve asks for a color outside the gamut, so it was mapped down.',
+  revert: 'Close the panel and drop this edit. The rows go back to the values in your files.',
   match: 'Every palette gets this palette’s lightness at each step, so the same step has the same contrast everywhere.',
   relative: 'Each palette keeps its own anchor lightness and follows the curve’s shape from there.',
   reset: 'Go back to the palette’s current values.',
-  apply: 'Write the changes to your files as one undoable step.',
+  apply: 'Write the previewed rows to your files as one undoable step.',
 } as const;
 
 /** What each scale check looks for. */

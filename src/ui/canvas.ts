@@ -11,11 +11,12 @@ export function displayGamut(target: Gamut): Gamut {
   return target === 'p3' && typeof matchMedia === 'function' && matchMedia('(color-gamut: p3)').matches ? 'p3' : 'srgb';
 }
 
-export function swatchCanvas(info: ColorInfo, gamut: Gamut): HTMLCanvasElement {
+/** `mark`: draw the corner triangle on colors outside the gamut (off where a badge says so instead). */
+export function swatchCanvas(info: ColorInfo, gamut: Gamut, mark = true): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.className = 'swatch-canvas';
   canvas.setAttribute('aria-hidden', 'true');
-  (canvas as HTMLCanvasElement & { paint?: () => void }).paint = () => paint(canvas, info, gamut);
+  (canvas as HTMLCanvasElement & { paint?: () => void }).paint = () => paint(canvas, info, gamut, mark);
   return canvas;
 }
 
@@ -24,7 +25,7 @@ export function paintAll(root: ParentNode) {
   for (const c of root.querySelectorAll<HTMLCanvasElement & { paint?: () => void }>('canvas.swatch-canvas')) c.paint?.();
 }
 
-function paint(canvas: HTMLCanvasElement, info: ColorInfo, gamut: Gamut) {
+function paint(canvas: HTMLCanvasElement, info: ColorInfo, gamut: Gamut, mark: boolean) {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
   const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
@@ -37,7 +38,7 @@ function paint(canvas: HTMLCanvasElement, info: ColorInfo, gamut: Gamut) {
   ctx.fillStyle = paintStyle(info, gamut);
   ctx.fillRect(0, 0, w, h);
   const outside = gamut === 'p3' ? !info.inP3 : !info.inSrgb;
-  if (outside) {
+  if (outside && mark) {
     // Corner mark: this swatch is a mapped approximation of the real color.
     const s = Math.min(w, h) * 0.32;
     ctx.fillStyle = info.oklch.l > 0.6 ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.75)';
