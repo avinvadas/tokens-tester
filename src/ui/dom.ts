@@ -47,6 +47,7 @@ const ICONS = {
     '<path d="M10.585 10.587a2 2 0 0 0 2.829 2.828"/><path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87"/><path d="M3 3l18 18"/>',
   pin: '<path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/><path d="M9 15l-4.5 4.5"/><path d="M14.5 4l5.5 5.5"/>',
   curve: '<path d="M6.5 17.5c5 0 5 -11 11 -11"/><circle cx="4.5" cy="17.5" r="2"/><circle cx="19.5" cy="6.5" r="2"/>',
+  'chevron-down': '<path d="M6 9l6 6l6 -6"/>',
 } as const;
 
 export function icon(name: keyof typeof ICONS): SVGSVGElement {

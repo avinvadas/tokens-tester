@@ -1,96 +1,102 @@
 import { ColorSpace, inGamut, to, toGamut } from 'colorjs.io/fn';
-import { colorInfo, infoFrom, type ColorInfo, type Gamut } from '../color/format';
+import { infoFrom, type ColorInfo, type Gamut } from '../color/format';
 import type { Palette, PaletteSet, Swatch } from '../palette/detect';
 import type { End, EndId } from './analyze';
 
 /**
- * The light and dark ends contrast is measured against. The global ends are
- * neutral: by default the system's own lightest and darkest neutrals (what
- * text usually sits on), falling back to white and black; the user can pick
- * any other neutral. Each palette then gets its own ends at the same
- * lightness, tinted with its hue (see rowEnds).
+ * The light and dark ends contrast is measured against. Each global end is a
+ * neutral token, picked by name: by default the system's lightest and darkest
+ * neutral. Only its lightness is used, so the end itself has no chroma. Each
+ * palette then gets its own ends at the same lightness, tinted with its hue
+ * (see rowEnds). A system without neutral tokens falls back to pure white and
+ * black.
  */
+
+/** The token id the user picked for each global end. */
+export type EndChoice = Partial<Record<EndId, string>>;
 
 export const WHITE = 'white';
 export const BLACK = 'black';
 
-const white = colorInfo({ colorSpace: 'srgb', components: [1, 1, 1] })!;
-const black = colorInfo({ colorSpace: 'srgb', components: [0, 0, 0] })!;
-
 const NEUTRAL = /neutral|gr[ae]y|slate|zinc|stone|sand|mono|ink/i;
 
-/** Chroma below which a color is neutral enough to be a system-wide end. */
+/** Chroma below which a loose color is neutral enough to be an end. */
 export const NEUTRAL_CHROMA = 0.02;
 /** A palette whose most colorful step stays below this is a neutral (gray) palette. */
 const NEUTRAL_PALETTE = 0.04;
 
-const isNeutralPalette = (p: Palette) => Math.max(...p.swatches.map((s) => s.info.oklch.c)) < NEUTRAL_PALETTE;
+/** Named gray scales (slate, zinc…) often carry a slight tint, so they get more room. */
+const NAMED_NEUTRAL_PALETTE = 0.08;
 
-/**
- * Colors that can serve as global ends: low-chroma steps of neutral palettes
- * and low-chroma loose colors. A pale step of a colored palette (blue 50) is
- * not neutral, however little chroma it has: it carries that palette's hue.
- */
-function neutralSwatches(set: PaletteSet): Swatch[] {
-  return [...set.palettes.filter((p) => p.included && isNeutralPalette(p)).flatMap((p) => p.swatches), ...set.loose].filter(
-    (s) => s.info.oklch.c < NEUTRAL_CHROMA,
-  );
+const isNeutralPalette = (p: Palette) => {
+  const c = Math.max(...p.swatches.map((s) => s.info.oklch.c));
+  return c < NEUTRAL_PALETTE || (c < NAMED_NEUTRAL_PALETTE && p.id.split('.').some((seg) => NEUTRAL.test(seg)));
+};
+const neutralPalettes = (set: PaletteSet) => set.palettes.filter((p) => p.included && p.swatches.length && isNeutralPalette(p));
+const neutralLoose = (set: PaletteSet) => set.loose.filter((s) => s.info.oklch.c < NEUTRAL_CHROMA);
+
+/** An achromatic color at lightness `l` (0–1). */
+export function level(l: number): ColorInfo {
+  return infoFrom({ space: ColorSpace.get('oklch'), coords: [l, 0, 0], alpha: 1 });
 }
 
 export interface EndCandidate {
   id: string;
+  l: number;
+  /** The token's own color, for its thumbnail. */
   info: ColorInfo;
 }
 
-export type EndChoice = Partial<Record<EndId, string>>;
-
-function allSwatches(set: PaletteSet): Swatch[] {
-  return [...set.palettes.filter((p) => p.included).flatMap((p) => p.swatches), ...set.loose];
+/** A group of end candidates: one neutral scale, or the loose neutral colors. */
+export interface EndGroup {
+  label: string;
+  tokens: EndCandidate[];
 }
 
-/** Colors offered as global ends: white/black plus light (L ≥ 0.8) or dark (L ≤ 0.4) neutral base colors. */
-export function endCandidates(set: PaletteSet): Record<EndId, EndCandidate[]> {
-  const all = neutralSwatches(set).map((s) => ({ id: s.token.id, info: s.info }));
-  return {
-    light: [{ id: WHITE, info: white }, ...all.filter((c) => c.info.oklch.l >= 0.8).sort((a, b) => b.info.oklch.l - a.info.oklch.l)],
-    dark: [{ id: BLACK, info: black }, ...all.filter((c) => c.info.oklch.l <= 0.4).sort((a, b) => a.info.oklch.l - b.info.oklch.l)],
-  };
+/**
+ * Tokens that can be a global end, the same for both ends: every step of each
+ * neutral scale (in scale order), and loose neutral colors. A pale step of a
+ * colored palette (blue 50) is not neutral, however little chroma it has.
+ */
+export function endCandidates(set: PaletteSet): EndGroup[] {
+  const cand = (s: Swatch): EndCandidate => ({ id: s.token.id, l: s.info.oklch.l, info: s.info });
+  const loose = neutralLoose(set).map(cand);
+  return [
+    ...neutralPalettes(set).map((p) => ({ label: p.name, tokens: p.swatches.map(cand) })),
+    ...(loose.length ? [{ label: 'Other colors', tokens: loose.sort((a, b) => b.l - a.l) }] : []),
+  ];
 }
 
-/** The system's lightest and darkest neutral, if it has a neutral palette or white/black tokens. */
+/** The system's lightest and darkest neutral token, otherwise white and black. */
 export function defaultEnds(set: PaletteSet): Record<EndId, string> {
   const included = set.palettes.filter((p) => p.included && p.swatches.length >= 5);
   const meanChroma = (sw: Swatch[]) => sw.reduce((n, s) => n + s.info.oklch.c, 0) / sw.length;
   const neutral =
-    included.find((p) => p.id.split('.').some((seg) => NEUTRAL.test(seg))) ??
+    included.find((p) => p.id.split('.').some((seg) => NEUTRAL.test(seg)) && isNeutralPalette(p)) ??
     included.filter((p) => meanChroma(p.swatches) < 0.03).sort((a, b) => range(b.swatches) - range(a.swatches))[0];
-  if (neutral) {
-    const byL = [...neutral.swatches].sort((a, b) => b.info.oklch.l - a.info.oklch.l);
-    return { light: byL[0]!.token.id, dark: byL.at(-1)!.token.id };
-  }
-  const loose = [...set.loose].sort((a, b) => b.info.oklch.l - a.info.oklch.l);
-  const light = loose.find((s) => s.info.oklch.l >= 0.97 && s.info.oklch.c < 0.02);
-  const dark = [...loose].reverse().find((s) => s.info.oklch.l <= 0.2 && s.info.oklch.c < 0.02);
-  return { light: light?.token.id ?? WHITE, dark: dark?.token.id ?? BLACK };
+  const pool = neutral ? neutral.swatches.map((s) => ({ id: s.token.id, l: s.info.oklch.l })) : endCandidates(set).flatMap((g) => g.tokens);
+  if (pool.length < 2) return { light: WHITE, dark: BLACK };
+  const byL = [...pool].sort((a, b) => b.l - a.l);
+  return { light: byL[0]!.id, dark: byL.at(-1)!.id };
 }
 
 const range = (sw: Swatch[]) => Math.max(...sw.map((s) => s.info.oklch.l)) - Math.min(...sw.map((s) => s.info.oklch.l));
 
-/** Resolve the user's choice (falling back to defaults when a chosen token is gone or not neutral). */
+/**
+ * The global ends: the picked tokens, or the defaults when a pick is gone,
+ * not neutral, or not on its side of the other end. Only the token's
+ * lightness is kept.
+ */
 export function resolveEnds(set: PaletteSet, choice: EndChoice): Record<EndId, End> {
-  const defaults = defaultEnds(set);
-  const all = new Map(allSwatches(set).map((s) => [s.token.id, s.info]));
-  const neutral = new Set(neutralSwatches(set).map((s) => s.token.id));
-  const pick = (id: EndId): End => {
-    for (const [name, chosen] of [[choice[id], true], [defaults[id], false]] as const) {
-      if (name === WHITE) return { id, name, info: white };
-      if (name === BLACK) return { id, name, info: black };
-      const info = name ? all.get(name) : undefined;
-      if (info && (!chosen || neutral.has(name!))) return { id, name: name!, info };
-    }
-    return { id, name: id === 'light' ? WHITE : BLACK, info: id === 'light' ? white : black };
-  };
-  return { light: pick('light'), dark: pick('dark') };
+  const known = new Map(endCandidates(set).flatMap((g) => g.tokens.map((t) => [t.id, t.l] as const)));
+  known.set(WHITE, 1).set(BLACK, 0);
+  const d = defaultEnds(set);
+  const pick = (id: EndId) => (choice[id] !== undefined && known.has(choice[id]!) ? choice[id]! : d[id]);
+  let light = pick('light');
+  let dark = pick('dark');
+  if (known.get(light)! <= known.get(dark)!) [light, dark] = known.get(d.light)! > known.get(d.dark)! ? [d.light, d.dark] : [WHITE, BLACK];
+  const end = (id: EndId, name: string): End => ({ id, name, info: level(known.get(name)!) });
+  return { light: end('light', light), dark: end('dark', dark) };
 }
 
 /**

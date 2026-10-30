@@ -53,23 +53,28 @@ describe('metrics', () => {
 });
 
 describe('ends', () => {
-  it("default to the system's lightest and darkest neutral", () => {
+  it("default to the system's lightest and darkest neutral token", () => {
     expect(defaultEnds(set)).toEqual({ light: 'color.neutral.0', dark: 'color.neutral.500' });
   });
-  it('fall back to white and black without a neutral palette', () => {
+  it('fall back to white and black without neutral tokens', () => {
     expect(defaultEnds({ palettes: [], loose: [] })).toEqual({ light: 'white', dark: 'black' });
   });
-  it('honour a choice, and fall back when the chosen token is gone', () => {
-    expect(resolveEnds(set, { light: 'color.neutral.100' }).light.name).toBe('color.neutral.100');
-    expect(resolveEnds(set, { light: 'color.gone' }).light.name).toBe('color.neutral.0');
-    expect(resolveEnds(set, { dark: 'black' }).dark.name).toBe('black');
+  it('take only the picked token’s lightness, without chroma', () => {
+    const e = resolveEnds(set, { light: 'color.neutral.100' });
+    const step = neutral.swatches.find((s) => s.step === '100')!.info.oklch;
+    expect(e.light.name).toBe('color.neutral.100');
+    expect(e.light.info.oklch.l).toBeCloseTo(step.l, 4);
+    expect(e.light.info.oklch.c).toBeLessThan(1e-4);
   });
-  it('offer light and dark candidates', () => {
-    const c = endCandidates(set);
-    expect(c.light[0]!.id).toBe('white');
-    expect(c.light.map((x) => x.id)).toContain('color.neutral.100');
-    expect(c.dark.map((x) => x.id)).toContain('color.brand.500');
-    expect(c.dark.map((x) => x.id)).not.toContain('color.neutral.100');
+  it('fall back to the defaults for a gone token, or ends on the wrong side of each other', () => {
+    expect(resolveEnds(set, { light: 'color.gone' }).light.name).toBe('color.neutral.0');
+    const crossed = resolveEnds(set, { light: 'color.neutral.400', dark: 'color.neutral.100' });
+    expect([crossed.light.name, crossed.dark.name]).toEqual(['color.neutral.0', 'color.neutral.500']);
+  });
+  it('offer every step of each neutral scale, by name', () => {
+    const ids = endCandidates(set).flatMap((g) => g.tokens.map((x) => x.id));
+    for (const s of neutral.swatches) expect(ids).toContain(s.token.id);
+    expect(ids).not.toContain('white');
   });
 });
 
@@ -151,10 +156,10 @@ describe('neutral global ends and per-row ends', () => {
   const gray = tset.palettes.find((p) => p.id === 'color.gray')!;
   const global = resolveEnds(tset, {});
 
-  it('offers only neutral colors as global ends, and ignores a colored choice', () => {
-    const c = endCandidates(tset);
-    expect(c.light.map((x) => x.id)).toContain('color.gray.50');
-    expect(c.light.map((x) => x.id)).not.toContain('color.blue.50');
+  it('offers only neutral tokens as global ends, and ignores a colored pick', () => {
+    const ids = endCandidates(tset).flatMap((g) => g.tokens.map((x) => x.id));
+    expect(ids).toContain('color.gray.50');
+    expect(ids).not.toContain('color.blue.50');
     expect(resolveEnds(tset, { light: 'color.blue.50' }).light.name).toBe(global.light.name);
   });
 

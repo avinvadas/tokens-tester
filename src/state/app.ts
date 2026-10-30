@@ -155,6 +155,7 @@ export function setPaletteIncluded(id: string, included: boolean) {
   store.set((s) => ({ paletteOverrides: { ...s.paletteOverrides, [id]: included } }));
 }
 
+/** Pick the token a global end takes its lightness from. */
 export function setContrastEnd(end: EndId, id: string) {
   store.set((s) => ({ contrastEnds: { ...s.contrastEnds, [end]: id } }));
 }

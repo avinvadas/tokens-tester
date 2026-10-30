@@ -1,5 +1,5 @@
 import { formatColor, lch, type ColorInfo } from '../color/format';
-import { analyzePalette, passPoint, type End, type EndId, type PaletteContrast } from '../contrast/analyze';
+import { analyzePalette, passPoint, type EndId, type PaletteContrast } from '../contrast/analyze';
 import { beyondEnds, rowEnds, withinEnds } from '../contrast/ends';
 import { formatContrast } from '../contrast/metrics';
 import { checkPalettes, type FlagKind, type ScaleFlag } from '../palette/checks';
@@ -49,10 +49,10 @@ const FORMATS: { value: Settings['colorFormat']; label: string }[] = [
  * Columns: row labels | light end | one per step | dark end | row actions.
  * The end columns bracket every row with that palette's own ends.
  */
-const LIGHT_COL = 1;
-const STEP_COL = 2;
-const darkCol = (steps: number) => STEP_COL + steps;
-const actionCol = (steps: number) => STEP_COL + steps + 1;
+/** Row labels (◻ Light, ΔL…) sit at the start of the first step's column, so the grid starts with the first swatch. */
+const LABEL_COL = 1;
+const STEP_COL = 1;
+const actionCol = (steps: number) => STEP_COL + steps;
 
 type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds' | 'themes' | 'activeTheme'>;
 
@@ -190,8 +190,6 @@ export class TTPalettes extends HTMLElement {
     const cells: HTMLElement[] = [];
     if (g.columns.length) {
       g.columns.forEach((c, i) => cells.push(at(h('span', { class: 'col-head', 'data-tip': TIP.step }, c), 1, STEP_COL + i)));
-      cells.push(at(h('span', { class: 'col-head end-head', 'data-tip': TIP.lightEnd }, '◻ Light end'), 1, LIGHT_COL));
-      cells.push(at(h('span', { class: 'col-head end-head', 'data-tip': TIP.darkEnd }, '◼ Dark end'), 1, darkCol(g.columns.length)));
       cells.push(at(h('span', { class: 'col-corner col-end' }), 1, actionCol(g.columns.length)));
     }
     let row = 2;
@@ -209,7 +207,7 @@ export class TTPalettes extends HTMLElement {
       // A row's own ends follow its colors, so a previewed row gets them re-derived.
       const ends = live ? rowEnds(p, contrast.ends, settings.gamut) : (contrast.rowEnds.get(p.id) ?? contrast.ends);
       const result = live && contrast.levels.length ? analyzePalette(p, ends, contrast.levels) : contrast.results.get(p.id);
-      row = this.paletteRows(cells, row, g.columns, p, !!live, settings, shown, contrast, result, ends, past);
+      row = this.paletteRows(cells, row, g.columns, p, !!live, settings, shown, contrast, result, past);
     }
     // A grid of hidden palettes only (nothing shown) has no step columns: just names and eyes.
     const style = g.columns.length ? `--cols: ${g.columns.length}` : 'grid-template-columns: minmax(240px, max-content) 0 0 var(--action-w)';
@@ -227,12 +225,10 @@ export class TTPalettes extends HTMLElement {
     shown: Settings['gamut'],
     contrast: ContrastView,
     result: PaletteContrast | undefined,
-    ends: Record<EndId, End>,
     past: { step: string; end: EndId }[],
   ): number {
     const col = new Map(columns.map((c, i) => [c, STEP_COL + i]));
     const actions = actionCol(columns.length);
-    const dark = darkCol(columns.length);
     const byStep = new Map(p.swatches.map((s) => [s.step, s]));
     const offScale = new Map(p.flags.filter((f) => f.kind === 'unordered').flatMap((f) => f.steps.map((step) => [step, f] as const)));
     const endIds: EndId[] = result && contrast.levels.length ? ['light', 'dark'] : [];
@@ -249,10 +245,8 @@ export class TTPalettes extends HTMLElement {
     );
     row++;
 
-    // Units between the row's own ends. Every column is a step some row in the system
+    // The row's units. Every column is a step some row in the system
     // has, so a step this row lacks is a gap, wherever it falls.
-    cells.push(at(this.endUnit(ends.light, 'light', settings), row, LIGHT_COL));
-    cells.push(at(this.endUnit(ends.dark, 'dark', settings), row, dark));
     columns.forEach((c, i) => {
       const s = byStep.get(c);
       cells.push(at(s ? this.unit(s, settings, shown, offScale.get(c)) : h('div', { class: 'unit-gap', 'data-tip': TIP.missingStep }), row, STEP_COL + i));
@@ -273,16 +267,15 @@ export class TTPalettes extends HTMLElement {
       }
       cells.push(
         at(
-          h('span', { class: 'rail-label', 'data-tip': TIP.rangeOn }, h('span', { 'aria-hidden': 'true' }, end === 'light' ? '◻ ' : '◼ '), `On ${end} end`),
+          h('span', { class: 'rail-label', 'data-tip': TIP.rangeOn }, h('span', { 'aria-hidden': 'true' }, end === 'light' ? '◻ ' : '◼ '), end === 'light' ? 'Light' : 'Dark'),
           row,
-          LIGHT_COL,
+          LABEL_COL,
         ),
       );
       columns.forEach((_, i) => {
         const m = marks.get(STEP_COL + i);
-        cells.push(at(h('span', { class: `rail-cell${m ? ` mark ${m.side === 'start' ? 'pp-l' : 'pp-r'}` : ''}` }, m?.badges ?? null), row, STEP_COL + i));
+        cells.push(at(h('span', { class: `rail-cell${i === 0 ? ' labelled' : ''}${m ? ` mark ${m.side === 'start' ? 'pp-l' : 'pp-r'}` : ''}` }, m?.badges ?? null), row, STEP_COL + i));
       });
-      cells.push(at(h('span', { class: 'rail-cell' }), row, LIGHT_COL), at(h('span', { class: 'rail-cell' }), row, dark));
       cells.push(at(h('span', { class: 'row-end' }), row, actions));
       row++;
     }
@@ -290,21 +283,14 @@ export class TTPalettes extends HTMLElement {
     // ΔL, ΔC, ΔH: the change between neighbouring steps, on the boundary between their columns.
     const pairs = p.flags.filter((f) => PAIR_KINDS.has(f.kind));
     for (const ch of CHANNELS) {
-      cells.push(at(h('span', { class: 'rail-label delta', 'data-tip': TIP.delta[ch] }, `Δ${ch.toUpperCase()}`), row, LIGHT_COL));
+      cells.push(at(h('span', { class: 'rail-label delta', 'data-tip': TIP.delta[ch] }, `Δ${ch.toUpperCase()}`), row, LABEL_COL));
       columns.forEach((_, i) => cells.push(at(h('span', { class: 'rail-cell' }), row, STEP_COL + i)));
-      cells.push(at(h('span', { class: 'rail-cell' }), row, LIGHT_COL), at(h('span', { class: 'rail-cell' }), row, dark));
-      // The row from its light end to its dark end. Each gap sits on the left edge of
-      // the right-hand unit; the gap to the dark end sits just after the last step.
-      const seq = [
-        { info: ends.light.info, step: '', at: LIGHT_COL },
-        ...p.swatches.map((s) => ({ info: s.info, step: s.step, at: col.get(s.step)! })),
-        { info: ends.dark.info, step: '', at: dark },
-      ];
+      // Each change sits on the left edge of the right-hand unit of the pair.
+      const seq = p.swatches.map((s) => ({ info: s.info, step: s.step, at: col.get(s.step)! }));
       seq.forEach((s, i) => {
         const a = seq[i - 1];
         if (!a) return;
-        const place = i === seq.length - 1 ? a.at + 1 : s.at;
-        const hits = ch === 'l' && a.step && s.step ? pairs.filter((f) => f.steps.includes(a.step) && f.steps.includes(s.step)) : [];
+        const hits = ch === 'l' ? pairs.filter((f) => f.steps.includes(a.step) && f.steps.includes(s.step)) : [];
         cells.push(
           at(
             h(
@@ -315,7 +301,7 @@ export class TTPalettes extends HTMLElement {
                 : h('span', { class: 'dl', 'data-tip': TIP.delta[ch] }, delta(ch, a.info, s.info)),
             ),
             row,
-            place,
+            s.at,
           ),
         );
       });
@@ -384,7 +370,8 @@ export class TTPalettes extends HTMLElement {
   }
 
   /** One token as a fixed-size unit: its color, and the checks about its value alone. */
-  private unit(s: Swatch, settings: Settings, shown: Settings['gamut'], offScale?: ScaleFlag) {
+  /** `named`: lead with the step name (off where the full token id is shown above, as for loose colors). */
+  private unit(s: Swatch, settings: Settings, shown: Settings['gamut'], offScale?: ScaleFlag, named = true) {
     const value = formatColor(s.info, settings.colorFormat);
     const r = lch(s.info);
     const gamut = !s.info.inP3
@@ -407,25 +394,9 @@ export class TTPalettes extends HTMLElement {
       h(
         'div',
         { class: 'unit-val' },
+        named ? h('span', { class: 'unit-name', 'data-tip': TIP.unitName }, s.step) : null,
         h('code', { class: 'value', 'data-tip': TIP.value }, value.approx ? h('span', { class: 'outl', 'data-tip': TIP.approx }, '≈') : null, value.text),
         h('span', { class: 'lch' }, h('span', { 'data-tip': TIP.l }, r.l), h('span', { 'data-tip': TIP.c }, r.c), h('span', { 'data-tip': TIP.h }, r.h)),
-      ),
-    );
-  }
-
-  /** A row's own end: derived, not a token, so drawn as a quieter unit with its value. */
-  private endUnit(end: End, which: EndId, settings: Settings) {
-    const value = formatColor(end.info, settings.colorFormat);
-    const r = lch(end.info);
-    return h(
-      'div',
-      { class: 'unit end-unit', 'data-tip': which === 'light' ? TIP.lightEnd : TIP.darkEnd },
-      h('div', { class: 'unit-fill' }, swatchCanvas(end.info, displayGamut(settings.gamut), false)),
-      h(
-        'div',
-        { class: 'unit-val' },
-        h('code', { class: 'value' }, value.approx ? h('span', { class: 'outl' }, '≈') : null, value.text),
-        h('span', { class: 'lch' }, h('span', null, r.l), h('span', null, r.c), h('span', null, r.h)),
       ),
     );
   }
@@ -439,7 +410,7 @@ export class TTPalettes extends HTMLElement {
         h(
           'div',
           { class: 'unit-row' },
-          set.loose.map((s) => h('div', { class: 'unit-named' }, h('code', { class: 'col-head' }, s.token.id), this.unit(s, settings, shown))),
+          set.loose.map((s) => h('div', { class: 'unit-named' }, h('code', { class: 'col-head' }, s.token.id), this.unit(s, settings, shown, undefined, false))),
         ),
       ),
     );

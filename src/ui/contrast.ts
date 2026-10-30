@@ -1,11 +1,13 @@
 import type { EndId, PaletteContrast } from '../contrast/analyze';
-import { endCandidates, type EndCandidate } from '../contrast/ends';
+import { endCandidates } from '../contrast/ends';
 import { TARGETS, type ContrastTarget } from '../contrast/levels';
 import type { Settings } from '../model/types';
 import type { Palette, PaletteSet } from '../palette/detect';
 import { setContrastEnd, updateSettings } from '../state/app';
 import type { ContrastView } from '../state/contrast';
+import { displayGamut } from './canvas';
 import { h, masked } from './dom';
+import { swatchSelect } from './swatch-select';
 import { TIP } from './tips';
 
 /** UI pieces for contrast: target toggles, end pickers, step distance, parity. */
@@ -27,24 +29,40 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
       label,
     );
   };
-  const candidates = endCandidates(set);
-  const picker = (end: EndId, list: EndCandidate[]) => {
-    const select = h(
-      'select',
-      { 'aria-label': END_LABEL[end] },
-      list.map((c) => h('option', { value: c.id, selected: c.id === view.ends[end].name }, c.id)),
+  const groups = endCandidates(set);
+  // Each end is a neutral token, picked by name; only its lightness is used.
+  // Tokens that would not stay on their side of the other end are disabled,
+  // since every row between them would be empty.
+  const picker = (end: EndId) => {
+    const current = view.ends[end];
+    const other = view.ends[end === 'light' ? 'dark' : 'light'].info.oklch.l;
+    const ok = (l: number) => (end === 'light' ? l > other : l < other);
+    const pct = (l: number) => `L ${+(l * 100).toFixed(1)}`;
+    return h(
+      'span',
+      { class: 'end-picker' },
+      h('span', { 'data-tip': TIP.endPicker }, `${END_LABEL[end]}:`),
+      swatchSelect({
+        label: END_LABEL[end],
+        value: current.name,
+        gamut: displayGamut(settings.gamut),
+        groups: groups.map((g) => ({
+          label: g.label,
+          options: g.tokens.map((t) => ({ value: t.id, label: t.id, meta: pct(t.l), info: t.info, disabled: !ok(t.l) && t.id !== current.name })),
+        })),
+        fallback: { label: `${current.name} (no neutral tokens)`, info: current.info },
+        onPick: (id) => setContrastEnd(end, id),
+      }),
     );
-    select.addEventListener('change', () => setContrastEnd(end, select.value));
-    return h('label', { class: 'end-picker', 'data-tip': TIP.endPicker }, h('span', null, `${END_LABEL[end]}:`), masked(select));
   };
   return h(
     'div',
     { class: 'contrast-controls' },
     h('span', { class: 'label' }, 'Contrast:'),
     h('div', { class: 'chips', role: 'group', 'aria-label': 'Contrast compliance targets' }, TARGETS.map((t) => toggle(t.id, t.label))),
-    settings.contrast.length ? [picker('light', candidates.light), picker('dark', candidates.dark)] : null,
+    settings.contrast.length ? [picker('light'), picker('dark')] : null,
     settings.contrast.length
-      ? h('span', { class: 'legend' }, 'Pick neutral ends for the system. Each row gets its own ends at the same lightness, tinted with its hue, and marks where each level is first reached as text on them.')
+      ? h('span', { class: 'legend' }, 'Pick a neutral token for each end of the system; only its lightness is used. Each row gets its own ends at that lightness, tinted with its hue, and marks where each level is first reached as text on them.')
       : null,
   );
 }
