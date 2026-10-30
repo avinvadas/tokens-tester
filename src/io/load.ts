@@ -164,6 +164,9 @@ export async function pickFiles(fallback: HTMLInputElement): Promise<(RawSource 
   return results;
 }
 
+/** How long to wait for dropped files' handles before reading the files without them. */
+const HANDLE_MS = 1000;
+
 /** Read dropped files, keeping handles where the browser offers them. Must be called during the drop event. */
 export function readDropped(dt: DataTransfer): Promise<(RawSource | LoadError)[]> {
   const items = [...dt.items].filter((i) => i.kind === 'file');
@@ -171,9 +174,12 @@ export function readDropped(dt: DataTransfer): Promise<(RawSource | LoadError)[]
     // Both must be captured synchronously: the DataTransfer is emptied after the drop event.
     const files = items.map((i) => i.getAsFile());
     const pending = items.map((i) => i.getAsFileSystemHandle!());
-    return Promise.all(pending).then(
-      (handles) => Promise.all(handles.map((h, i) => readHandle(h, files[i]))),
-      () => readFiles(files.filter((f): f is File => f !== null)),
+    const plain = () => readFiles(files.filter((f): f is File => f !== null));
+    // Some embedded browsers never settle the handles; read the plain files then.
+    const stalled = new Promise<never>((_, fail) => setTimeout(() => fail(new Error('timeout')), HANDLE_MS));
+    return Promise.race([Promise.all(pending), stalled]).then(
+      (handles) => Promise.race([Promise.all(handles.map((h, i) => readHandle(h, files[i]))), stalled]).catch(plain),
+      plain,
     );
   }
   return readFiles(dt.files);

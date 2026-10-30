@@ -380,10 +380,10 @@ export class TTPalettes extends HTMLElement {
     const value = formatColor(s.info, settings.colorFormat);
     const r = lch(s.info);
     const gamut = !s.info.inP3
-      ? { cls: 'punch', text: 'Out of P3', tip: TIP.gamutOut }
+      ? { cls: 'warn-chip', text: 'Out of P3', tip: TIP.gamutOut }
       : !s.info.inSrgb
         ? settings.gamut === 'srgb'
-          ? { cls: 'punch', text: 'Out of sRGB', tip: TIP.gamutOutSrgb }
+          ? { cls: 'warn-chip', text: 'Out of sRGB', tip: TIP.gamutOutSrgb }
           : { cls: 'outl', text: 'P3', tip: TIP.gamutP3 }
         : undefined;
     // Click (or Enter) copies the token's name and value; the icon confirms it.
@@ -422,7 +422,7 @@ export class TTPalettes extends HTMLElement {
         swatchCanvas(s.info, shown, false),
         copyIcon,
         offScale ? h('span', { class: 'punch id-chip', 'data-tip': `${offScale.message} ${FLAG_TIP.unordered}` }, 'Off-scale') : null,
-        gamut ? h('span', { class: `${gamut.cls} value-chip`, 'data-tip': gamut.tip }, gamut.text) : null,
+        gamut ? h('span', { class: `${gamut.cls} value-chip`, 'data-tip': gamut.tip }, gamut.cls === 'warn-chip' ? icon('alert-triangle') : null, gamut.text) : null,
       ),
       h(
         'div',

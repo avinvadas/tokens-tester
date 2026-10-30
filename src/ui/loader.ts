@@ -4,9 +4,33 @@ import type { SourceFile } from '../model/types';
 import { addFiles, replaceFiles, setBusy, store, type LoadError } from '../state/app';
 import { h, masked, plural } from './dom';
 
+/** Length of each step on the first load: the ring fill, the landing fading out, the results fading in. */
+export const LOAD_MS = 330;
+
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+/** Settle the drop zone halfway back and fill its ring clockwise; resolves when the ring is full. */
+function fillRing(zone: HTMLElement): Promise<void> {
+  zone.classList.remove('loading');
+  void zone.offsetWidth;
+  zone.classList.add('loading');
+  return wait(LOAD_MS);
+}
+
+/** Fade the whole landing out; resolves when it is gone. */
+function fadeOut(view: HTMLElement): Promise<void> {
+  view.classList.add('fade-out');
+  return wait(LOAD_MS);
+}
+
 /** Parse sources and add them to the store, collecting errors for display. */
 export async function ingest(pending: Promise<(RawSource | LoadError)[]>) {
   setBusy(true);
+  // The first load plays out on the landing: ring fill, fade out, then the results fade in.
+  const zone = store.get().files.length === 0 && !reducedMotion() ? document.querySelector<HTMLElement>('.dropzone') : null;
+  const view = zone?.closest<HTMLElement>('.view');
+  const ring = zone ? fillRing(zone) : null;
   try {
     const files: SourceFile[] = [];
     const errors: LoadError[] = [];
@@ -15,8 +39,12 @@ export async function ingest(pending: Promise<(RawSource | LoadError)[]>) {
       if (isLoadError(parsed)) errors.push(parsed);
       else files.push(parsed);
     }
+    if (ring) await ring;
+    if (view && files.length) await fadeOut(view);
     addFiles(files, errors);
   } finally {
+    zone?.classList.remove('loading');
+    view?.classList.remove('fade-out');
     setBusy(false);
   }
 }
@@ -82,6 +110,7 @@ export class TTLoader extends HTMLElement {
           if (picked) void ingest(Promise.resolve(picked));
         },
       },
+      h('span', { class: 'zone-ring', 'aria-hidden': 'true' }),
       h('strong', null, 'Drop token files here'),
       h('span', null, 'or click to choose files'),
       h('small', null, 'DTCG .json or .tokens files. Load several at once, such as primitives and semantic.'),
@@ -120,6 +149,11 @@ export class TTLoader extends HTMLElement {
     this.replaceChildren(h('div', { class: 'loader' }, input, zone, form), errors);
 
     this.unsubs.push(
+      // Before any file is loaded, the Files view is a centered landing.
+      store.select(
+        (s) => s.files.length === 0,
+        (empty) => this.closest('.view')?.toggleAttribute('data-empty', empty),
+      ),
       store.select(
         (s) => s.busy,
         (busy) => {

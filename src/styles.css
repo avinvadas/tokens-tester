@@ -259,9 +259,10 @@ tt-nav { display: flex; flex-direction: column; gap: var(--space-4); }
 .nav-item[aria-current='page'] { background: var(--surface-selected); color: var(--text); }
 .nav-item[aria-disabled='true'] { opacity: 0.45; cursor: default; }
 .nav-item[aria-disabled='true']:hover { background: none; color: var(--muted); }
-.nav-item .count { margin-left: auto; font-size: var(--font-sm); color: var(--subtle); font-variant-numeric: tabular-nums; }
+.nav-item .count { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-sm); color: var(--subtle); font-variant-numeric: tabular-nums; }
 .nav-item .count.error { color: var(--error); font-weight: 600; }
 .nav-item .count.warning { color: var(--warn); font-weight: 600; }
+.nav-item .count.info .sev-icon { color: var(--info); }
 .nav-item .soon-tag { margin-left: auto; font-size: var(--font-2xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--subtle); }
 .nav-sep { height: 1px; background: var(--border); margin: var(--space-2); }
 
@@ -362,27 +363,72 @@ tbody tr:last-child td, tfoot tr:last-child td { border-bottom: 0; }
    ============================================================ */
 
 .load-card { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
-.loader { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-4); align-items: stretch; }
-@media (max-width: 720px) { .loader { grid-template-columns: 1fr; } }
 
+/*
+ * The drop zone is a circle. A file dragged over the page grows it and lightens
+ * it; on the first load it settles halfway back while its ring fills clockwise,
+ * then the landing fades out and the results fade in.
+ */
+@property --fill { syntax: '<number>'; inherits: false; initial-value: 0; }
 .dropzone {
-  font: inherit; color: inherit; width: 100%; height: auto;
+  --zone: 220px;
+  --grow: 1.08;
+  position: relative; font: inherit; color: inherit;
+  width: var(--zone); height: var(--zone); flex: none; border-radius: 50%;
   display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
-  text-align: center; white-space: normal;
-  min-height: 132px; padding: var(--space-4);
-  border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg);
+  text-align: center; white-space: normal; padding: var(--space-6);
+  border: 1.5px dashed var(--border-strong);
   background: var(--surface-2);
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.2s, transform 0.2s ease-out;
 }
 .dropzone strong { font-size: var(--font-md); }
 .dropzone span { color: var(--muted); }
-.dropzone small { color: var(--subtle); margin-top: var(--space-2); font-size: var(--font-sm); }
-.dropzone:hover:not(:disabled), body.dragging .dropzone { border-color: var(--accent); background: var(--accent-soft); }
-tt-loader[aria-busy] .dropzone { opacity: 0.6; }
+.dropzone small { color: var(--subtle); margin-top: var(--space-2); font-size: var(--font-sm); max-width: 24ch; }
+.dropzone:hover:not(:disabled) { border-color: var(--accent); }
+body.dragging .dropzone {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--surface-2), white 10%);
+  transform: scale(var(--grow));
+}
+.dropzone.loading {
+  border-color: transparent;
+  background: color-mix(in oklch, var(--surface-2), white 5%);
+  transform: scale(calc(1 + (var(--grow) - 1) / 2));
+}
+.zone-ring {
+  position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--accent) calc(var(--fill) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  opacity: 0;
+}
+.dropzone.loading .zone-ring { opacity: 1; animation: ring-fill 0.33s linear forwards; }
+@keyframes ring-fill { from { --fill: 0; } to { --fill: 1; } }
+.view.fade-out { animation: fade-out 0.33s ease-in forwards; }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+.view.fade-in { animation: fade-in 0.33s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .dropzone { transition: none; }
+  body.dragging .dropzone, .dropzone.loading { transform: none; }
+  .dropzone.loading .zone-ring, .view.fade-in, .view.fade-out { animation: none; }
+}
 
-.url-form { display: flex; flex-direction: column; gap: var(--space-2); justify-content: center; }
+
+/* Before any file is loaded the Files view is a centered landing with a large drop zone. */
+.loader { display: flex; flex-direction: column; align-items: center; gap: var(--space-5); }
+.view[data-empty] { text-align: center; align-items: center; }
+.view[data-empty] .view-head { align-items: center; }
+.view[data-empty] .view-head p { margin-inline: auto; }
+.view[data-empty] .load-card { border: 0; background: transparent; padding: var(--space-4) 0; align-items: center; width: 100%; }
+.view[data-empty] .dropzone { --zone: min(360px, 80vw); }
+.view[data-empty] .dropzone strong { font-size: var(--font-title); }
+.view[data-empty] .url-form { align-items: center; }
+.view[data-empty] .setting { text-align: left; max-width: 52ch; }
+
+.url-form { display: flex; flex-direction: column; gap: var(--space-2); justify-content: center; width: min(440px, 100%); }
 .url-form label { font-weight: 600; }
-.url-form .row { display: flex; gap: var(--space-2); }
+.url-form .row { display: flex; gap: var(--space-2); align-self: stretch; }
 .url-form input { flex: 1; }
 .url-form .hint { color: var(--subtle); font-size: var(--font-sm); }
 
@@ -426,7 +472,10 @@ tt-issues { display: flex; flex-direction: column; gap: var(--space-4); }
 .issue-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .issue { display: grid; grid-template-columns: 72px 1fr auto; gap: var(--space-3); align-items: baseline; padding: var(--space-2) var(--space-3); }
 .issue + .issue { border-top: 1px solid var(--border); }
-.sev { font-size: var(--font-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.sev { display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+/* Severity icons sit on the text's color; sized to the label they lead. */
+.sev-icon { width: 1.25em; height: 1.25em; flex: none; stroke-width: 2; }
+.chip .sev-icon { margin-right: 3px; vertical-align: -0.2em; }
 .sev.error { color: var(--error); }
 .sev.warning { color: var(--warn); }
 .sev.info { color: var(--info); }
@@ -518,6 +567,14 @@ tt-palettes { display: flex; flex-direction: column; gap: var(--space-4); }
 }
 .punch { background: var(--text); color: var(--bg); }
 .outl { border: 1px solid var(--text); color: var(--text); background: var(--surface); line-height: 1.35; }
+/* Out of gamut: a warning sitting on the swatch, in the theme's own surface and text colors. */
+.warn-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--font-2xs); font-weight: 600; line-height: 1.5; white-space: nowrap;
+  padding: 0 5px 0 3px; border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border-strong);
+}
+.warn-chip .icon { width: 12px; height: 12px; stroke-width: 2; }
 
 /* System grid: palettes on one step scheme share fixed-size columns.
    Units never stretch; a step a palette lacks is an empty slot.

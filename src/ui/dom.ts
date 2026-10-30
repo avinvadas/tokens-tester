@@ -52,6 +52,10 @@ const ICONS = {
   'chevron-down': '<path d="M6 9l6 6l6 -6"/>',
   copy: '<path d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z"/><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1"/>',
   check: '<path d="M5 12l5 5l10 -10"/>',
+  'alert-triangle-filled':
+    '<path d="M12 1.67c.955 0 1.845 .467 2.39 1.247l.105 .16l8.114 13.548a2.914 2.914 0 0 1 -2.307 4.363l-.195 .008h-16.225a2.914 2.914 0 0 1 -2.582 -4.2l.099 -.185l8.11 -13.538a2.914 2.914 0 0 1 2.491 -1.403zm.01 13.33l-.127 .007a1 1 0 0 0 0 1.986l.117 .007l.127 -.007a1 1 0 0 0 0 -1.986l-.117 -.007zm-.01 -7a1 1 0 0 0 -.993 .883l-.007 .117v4l.007 .117a1 1 0 0 0 1.986 0l.007 -.117v-4l-.007 -.117a1 1 0 0 0 -.993 -.883z"/>',
+  'info-circle': '<path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/>',
+  'alert-triangle': '<path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/>',
 } as const;
 
 export function icon(name: keyof typeof ICONS): SVGSVGElement {
@@ -79,4 +83,11 @@ export function pinButton(on: boolean, label: string, tip: string, onToggle: () 
     onToggle();
   });
   return b;
+}
+
+/** The icon for a severity: a filled triangle for errors, an outlined one for warnings, a circled "i" for info. */
+export function severityIcon(severity: 'error' | 'warning' | 'info'): SVGSVGElement {
+  const el = icon(severity === 'error' ? 'alert-triangle-filled' : severity === 'warning' ? 'alert-triangle' : 'info-circle');
+  el.classList.add('sev-icon');
+  return el;
 }

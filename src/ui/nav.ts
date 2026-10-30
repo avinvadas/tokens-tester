@@ -1,6 +1,6 @@
 import { ALL_THEMES, setActiveTheme, store, type AppState } from '../state/app';
 import { palettesOf } from '../state/palettes';
-import { h, masked } from './dom';
+import { h, masked, severityIcon } from './dom';
 import { TIP } from './tips';
 
 /**
@@ -45,8 +45,19 @@ function resolve(id: ViewId, hasFiles: boolean): ViewId {
 }
 
 export function goTo(id: ViewId) {
-  if (location.hash.slice(1) === id) show(resolve(id, store.get().files.length > 0));
-  else location.hash = id;
+  // Switch now rather than on hashchange, so the old view never shows for a frame.
+  show(resolve(id, store.get().files.length > 0));
+  if (location.hash.slice(1) !== id) location.hash = id;
+}
+
+/** Fade a view in, as the results do after the first files load. */
+function fadeIn(id: ViewId) {
+  const el = document.querySelector<HTMLElement>(`.view[data-view="${id}"]`);
+  if (!el) return;
+  el.classList.remove('fade-in');
+  void el.offsetWidth;
+  el.classList.add('fade-in');
+  el.addEventListener('animationend', () => el.classList.remove('fade-in'), { once: true });
 }
 
 function show(id: ViewId) {
@@ -62,7 +73,14 @@ function show(id: ViewId) {
 
 let current: ViewId = 'files';
 
-type View = Pick<AppState, 'files' | 'model' | 'themes' | 'activeTheme'>;
+type View = Pick<AppState, 'files' | 'model' | 'themes' | 'activeTheme' | 'themeModels' | 'loadErrors' | 'paletteOverrides' | 'settings'>;
+type Tone = 'error' | 'warning' | 'info';
+
+/** The severest of `tones`, if any. */
+const severest = (tones: Iterable<string>): Tone | undefined => {
+  const all = new Set(tones);
+  return all.has('error') ? 'error' : all.has('warning') ? 'warning' : all.has('info') ? 'info' : undefined;
+};
 
 export class TTNav extends HTMLElement {
   private unsub?: () => void;
@@ -77,11 +95,22 @@ export class TTNav extends HTMLElement {
         const has = v.files.length > 0;
         this.render(v);
         // First files loaded from the Files view: move on to the results.
-        if (has && !hadFiles && current === 'files' && requested() === 'files') goTo('issues');
+        if (has && !hadFiles && current === 'files' && requested() === 'files') {
+          goTo('issues');
+          fadeIn('issues');
+        }
         else show(resolve(requested(), has));
         hadFiles = has;
       },
-      (a, b) => a.files === b.files && a.model === b.model && a.themes === b.themes && a.activeTheme === b.activeTheme,
+      (a, b) =>
+        a.files === b.files &&
+        a.model === b.model &&
+        a.themes === b.themes &&
+        a.activeTheme === b.activeTheme &&
+        a.themeModels === b.themeModels &&
+        a.loadErrors === b.loadErrors &&
+        a.paletteOverrides === b.paletteOverrides &&
+        a.settings === b.settings,
     );
   }
 
@@ -94,13 +123,14 @@ export class TTNav extends HTMLElement {
     const has = v.files.length > 0;
     const errors = v.model.issues.filter((i) => i.severity === 'error').length;
     const warnings = v.model.issues.filter((i) => i.severity === 'warning').length;
-    const palettes = has ? palettesOf(store.get()).palettes.filter((p) => p.included).length : 0;
-    const counts: Partial<Record<ViewId, { n: number; tone?: 'error' | 'warning' }>> = has
+    const included = has ? palettesOf(store.get()).palettes.filter((p) => p.included) : [];
+    // Each count is led by the severest indication active in that view.
+    const counts: Partial<Record<ViewId, { n: number; tone?: Tone }>> = has
       ? {
-          files: { n: v.files.length },
-          themes: v.themes.length ? { n: v.themes.length } : undefined,
-          issues: { n: errors + warnings, tone: errors ? 'error' : warnings ? 'warning' : undefined },
-          colors: { n: palettes },
+          files: { n: v.files.length, tone: v.loadErrors.length ? 'error' : undefined },
+          themes: v.themes.length ? { n: v.themes.length, tone: severest(v.themeModels.flatMap((m) => m.model.issues.map((i) => i.severity))) } : undefined,
+          issues: { n: errors + warnings, tone: severest(v.model.issues.map((i) => i.severity)) },
+          colors: { n: included.length, tone: severest(included.flatMap((p) => p.flags.map((f) => f.severity))) },
           tokens: { n: v.model.tokens.size },
         }
       : {};
@@ -119,7 +149,11 @@ export class TTNav extends HTMLElement {
           'data-tip': d.tip,
         },
         h('span', null, d.label),
-        d.soon ? h('span', { class: 'soon-tag' }, 'Soon') : c && c.n > 0 ? h('span', { class: `count${c.tone ? ` ${c.tone}` : ''}` }, String(c.n)) : null,
+        d.soon
+          ? h('span', { class: 'soon-tag' }, 'Soon')
+          : c && (c.n > 0 || c.tone)
+            ? h('span', { class: `count${c.tone ? ` ${c.tone}` : ''}`, 'aria-label': c.tone ? `${c.n}, ${c.tone}` : undefined }, c.tone ? severityIcon(c.tone) : null, c.n > 0 ? String(c.n) : null)
+            : null,
       );
     });
 

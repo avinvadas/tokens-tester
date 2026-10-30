@@ -1,7 +1,7 @@
 import type { Category, Fix, Issue, Model, Severity } from '../model/types';
 import { ALL_THEMES, applyFixes, setActiveTheme, store, undo, type AppState } from '../state/app';
 import { mergeModels } from '../themes/merge';
-import { h, masked, plural } from './dom';
+import { h, masked, plural, severityIcon } from './dom';
 import { reloadAll } from './loader';
 import { CATEGORY_TIP, SEVERITY_TIP, TIP } from './tips';
 
@@ -100,7 +100,7 @@ export class TTIssues extends HTMLElement {
           'h2',
           null,
           'Issues ',
-          h('span', { class: 'counts' }, SEVERITIES.filter(count).map((s) => h('span', { class: `chip ${s}`, 'data-tip': SEVERITY_TIP[s] }, plural(count(s), SEVERITY_LABEL[s].toLowerCase())))),
+          h('span', { class: 'counts' }, SEVERITIES.filter(count).map((s) => h('span', { class: `chip ${s}`, 'data-tip': SEVERITY_TIP[s] }, severityIcon(s), plural(count(s), SEVERITY_LABEL[s].toLowerCase())))),
         ),
         h('div', { class: 'reload-wrap' }, this.status, this.reload),
       ),
@@ -139,7 +139,7 @@ export class TTIssues extends HTMLElement {
     return h(
       'li',
       { class: `issue ${i.severity}` },
-      h('span', { class: `sev ${i.severity}`, 'data-tip': SEVERITY_TIP[i.severity] }, SEVERITY_LABEL[i.severity]),
+      h('span', { class: `sev ${i.severity}`, 'data-tip': SEVERITY_TIP[i.severity] }, severityIcon(i.severity), SEVERITY_LABEL[i.severity]),
       h(
         'div',
         { class: 'body' },
