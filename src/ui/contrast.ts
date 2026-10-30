@@ -44,7 +44,7 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
     h('div', { class: 'chips', role: 'group', 'aria-label': 'Contrast compliance targets' }, TARGETS.map((t) => toggle(t.id, t.label))),
     settings.contrast.length ? [picker('light', candidates.light), picker('dark', candidates.dark)] : null,
     settings.contrast.length
-      ? h('span', { class: 'legend' }, 'Under each palette, one row per end marks where each level is first reached when the steps are used as text on it.')
+      ? h('span', { class: 'legend' }, 'Pick neutral ends for the system. Each row gets its own ends at the same lightness, tinted with its hue, and marks where each level is first reached as text on them.')
       : null,
   );
 }

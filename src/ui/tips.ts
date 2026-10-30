@@ -60,9 +60,8 @@ export const TIP = {
 
   // Palettes
   paletteMeta: 'Number of steps, and whether lightness goes from light to dark, dark to light, or has no clear order.',
-  editCurves: 'Reshape this whole row with lightness, chroma and hue curves. The row previews live; nothing changes in your files until you apply.',
-  notBase: 'Hide this group from the palette checks, for example when it is a set of one-off colors.',
-  treatAsBase: 'Show this group as a palette and run the scale and contrast checks on it.',
+  notBase: 'Shown. Click to hide this palette from the system, for example when it is a set of one-off colors.',
+  treatAsBase: 'Hidden. Click to show this palette in the system and run the scale and contrast checks on it.',
   formats: {
     oklch: 'Show colors as oklch(lightness chroma hue), the space every check here uses.',
     hex: 'Show colors as hex. Colors outside sRGB are shown approximately (≈).',
@@ -78,8 +77,16 @@ export const TIP = {
   c: 'C: chroma, how colorful it is. 0 is gray; around 0.37 is the most saturated a screen can show.',
   h: 'H: hue angle in degrees (about 30 red, 100 yellow, 145 green, 265 blue).',
   gamutOutSrgb: 'Outside sRGB, the target gamut: it is drawn mapped into sRGB, so screens show something other than the file. Switch the target to Display P3 if that is intended.',
-  deltaL: 'Lightness difference between these two neighbouring steps (0–100 scale).',
-  scaleRail: 'How each step relates to the next one: the lightness difference, or the problem with that pair.',
+  delta: {
+    l: 'ΔL: how much lighter or darker each step is than the one before it, on the 0–100 lightness scale. Problems with a pair (reversed, too close, uneven) replace the number.',
+    c: 'ΔC: how much chroma (colorfulness) changes from the step before; + is more colorful, − less.',
+    h: 'ΔH: how far the hue turns from the step before, in degrees. – where a step is too gray for its hue to count.',
+  },
+  curveFor: {
+    l: 'Edit this row’s lightness curve. The row previews live; nothing changes in your files until you apply.',
+    c: 'Edit this row’s chroma curve. The row previews live; nothing changes in your files until you apply.',
+    h: 'Edit this row’s hue curve. The row previews live; nothing changes in your files until you apply.',
+  },
   flagWarning: 'Warning: likely a mistake in the scale.',
   flagInfo: 'Note: worth a look, but may be intended.',
 
@@ -89,13 +96,16 @@ export const TIP = {
     'wcag-aaa': 'WCAG 2.2 AAA: ratio of at least 7 for text and 4.5 for large text. The enhanced level.',
     apca: 'APCA: the contrast method proposed for WCAG 3. Lc scores depend on which color is the text; higher is easier to read.',
   },
-  endPicker: 'The color text is tested on. Defaults to your lightest or darkest neutral, otherwise white or black.',
+  endPicker: 'The neutral end for the whole system. Each row gets its own end at this lightness, tinted with its hue. Defaults to your lightest or darkest neutral, otherwise white or black.',
   endLight: '◻ Contrast as text on the light end.',
   endDark: '◼ Contrast as text on the dark end.',
   wcagValue: 'WCAG contrast ratio, from 1 (none) to 21 (black on white).',
   apcaValue: 'APCA lightness contrast (Lc), from 0 to about 106. Higher is easier to read.',
   noLevel: '– means it passes none of the selected levels.',
-  rangeOn: 'Where each selected level is first reached when the steps are used as text on this color.',
+  rangeOn: 'Where each selected level is first reached when this row’s steps are used as text on its own end color.',
+  pastEnds: 'The global ends bound every row, so these steps are left out of the grid and its checks. They stay in your file; move the ends to include them.',
+  lightEnd: 'This row’s light end: the global light end’s lightness, tinted with this palette’s hue. Not a token; contrast on the light end is measured against it.',
+  darkEnd: 'This row’s dark end: the global dark end’s lightness, tinted with this palette’s hue. Not a token; contrast on the dark end is measured against it.',
   passPoint: 'The heavy edge is the pass point: from here on, steps reach this level as text on this background; on the other side of the edge they do not.',
   missingStep: 'Missing step: other palettes in this system have it, this one does not.',
   previewRow: 'This row shows an unapplied curve edit. Apply or revert it in the curves panel.',
@@ -106,10 +116,11 @@ export const TIP = {
 
 /** Curve editor controls. */
 export const CURVE_TIP = {
-  anchor: 'The step every curve passes through. It keeps its color unless you change it.',
-  anchorL: 'Anchor lightness, 0 (black) to 100 (white).',
-  anchorC: 'Anchor chroma: 0 is gray, higher is more colorful.',
-  anchorH: 'Anchor hue angle in degrees.',
+  anchor: 'The anchor (pinned): the step every curve passes through, shown ◆ on the curve. Any step can be the anchor, including the row’s light and dark ends (dashed). Drag along the strip, or use the arrow keys, to move it.',
+  anchorEnd: 'The anchor is one of this row’s ends. Its color comes from the global ends, so its values are read-only here; anchoring to it pins the curves to that end.',
+  anchorL: 'Anchor lightness, 0 (black) to 100 (white). Editable in the lightness curve.',
+  anchorC: 'Anchor chroma: 0 is gray, higher is more colorful. Editable in the chroma curve.',
+  anchorH: 'Anchor hue angle in degrees. Editable in the hue curve.',
   presets: {
     Current: 'Fit the curve to the palette’s current values.',
     Linear: 'Straight lines from each end through the anchor, so lightness changes evenly on each side.',

@@ -316,7 +316,7 @@ export function toEdits(p: Palette, gen: GenStep[]): Edit[] {
   const edits: Edit[] = [];
   gen.forEach((g, i) => {
     const sw = p.swatches[i]!;
-    if (sameColor(sw.info, g.info)) return;
+    if (sw.derived || sameColor(sw.info, g.info)) return;
     const t = sw.token;
     edits.push({ fileId: t.fileId, path: [...t.keyPath, ...t.valuePath], value: fromColorJs(g.info.source, t.rawValue as never) });
   });

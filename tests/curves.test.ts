@@ -195,6 +195,14 @@ describe('writing back', () => {
     expect(srgb.colorSpace).toBe('srgb');
     expect(srgb.hex).toMatch(/^#[0-9a-f]{6}$/);
   });
+  it('never writes a derived row end, only the steps', () => {
+    const end = { ...blue.swatches[0]!, step: '◻ end', derived: 'light' as const, token: undefined as never };
+    const row = { ...blue, swatches: [end, ...blue.swatches] };
+    const s = presetL(row, initialState(row, 1), 'linear');
+    const edits = toEdits(row, generate(row, s, 'srgb'));
+    expect(edits.length).toBeGreaterThan(0);
+    expect(edits.every((e) => e.fileId === blue.swatches[0]!.token.fileId)).toBe(true);
+  });
   it('moves an sRGB token to display-p3 when the new color is outside sRGB', async () => {
     const { fromColorJs } = await import('../src/color/dtcg');
     const p3 = colorInfo({ colorSpace: 'display-p3', components: [0, 1, 0] })!.source;

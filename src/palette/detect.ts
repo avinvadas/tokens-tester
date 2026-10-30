@@ -17,6 +17,8 @@ export interface Swatch {
   token: Token;
   step: string;
   info: ColorInfo;
+  /** A row end derived from the global ends, not a token (curve editor only). Never written back. */
+  derived?: 'light' | 'dark';
 }
 
 export type Direction = 'light-to-dark' | 'dark-to-light' | 'flat';

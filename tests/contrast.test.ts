@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { colorInfo } from '../src/color/format';
 import { analyzePalette, boundary, parity, passPoint } from '../src/contrast/analyze';
-import { defaultEnds, endCandidates, resolveEnds } from '../src/contrast/ends';
+import { beyondEnds, defaultEnds, endCandidates, resolveEnds, rowEnds, withinEnds } from '../src/contrast/ends';
 import { bestLevel, levelsFor } from '../src/contrast/levels';
 import { contrast, pairContrast } from '../src/contrast/metrics';
 import { DEFAULT_SETTINGS } from '../src/model/defaults';
@@ -128,5 +128,63 @@ describe('parity', () => {
   it('reports nothing when all palettes agree', () => {
     const same = new Map([[neutral.id, results.get(neutral.id)!], ['copy', results.get(neutral.id)!]]);
     expect(parity([neutral, { ...neutral, id: 'copy' }], same, AA)).toEqual([]);
+  });
+});
+
+describe('neutral global ends and per-row ends', () => {
+  const tinted = analyze(
+    [
+      loadText(
+        JSON.stringify({
+          color: {
+            $type: 'color',
+            gray: palette({ 50: '#fafafa', 500: '#737373', 900: '#171717' }),
+            blue: palette({ 50: '#eff6ff', 500: '#3b82f6', 900: '#1e3a8a' }),
+          },
+        }),
+      ),
+    ],
+    DEFAULT_SETTINGS,
+  );
+  const tset = detectPalettes(tinted, {}, 'srgb');
+  const blue = tset.palettes.find((p) => p.id === 'color.blue')!;
+  const gray = tset.palettes.find((p) => p.id === 'color.gray')!;
+  const global = resolveEnds(tset, {});
+
+  it('offers only neutral colors as global ends, and ignores a colored choice', () => {
+    const c = endCandidates(tset);
+    expect(c.light.map((x) => x.id)).toContain('color.gray.50');
+    expect(c.light.map((x) => x.id)).not.toContain('color.blue.50');
+    expect(resolveEnds(tset, { light: 'color.blue.50' }).light.name).toBe(global.light.name);
+  });
+
+  it('scopes rows to the global ends: steps past them are left out', () => {
+    const scoped = resolveEnds(tset, { light: 'color.gray.50', dark: 'color.gray.500' });
+    expect(withinEnds(gray, scoped).swatches.map((x) => x.step)).toEqual(['50', '500']);
+    expect(beyondEnds(gray, scoped)).toEqual([{ step: '900', end: 'dark' }]);
+    expect(beyondEnds(blue, scoped).map((x) => x.step)).toEqual(['900']);
+    // Pure white and black bound nothing.
+    expect(withinEnds(blue, resolveEnds(tset, { light: 'white', dark: 'black' }))).toBe(blue);
+  });
+
+  it('gives a neutral palette the global ends unchanged', () => {
+    expect(rowEnds(gray, global, 'srgb')).toEqual(global);
+  });
+
+  it('keeps pure white and black ends untinted: at L 100 or 0 there is no room for a hue', () => {
+    const own = rowEnds(blue, resolveEnds(tset, { light: 'white', dark: 'black' }), 'srgb');
+    expect(own.light.info.oklch.c).toBeLessThan(0.001);
+    expect(own.dark.info.oklch.c).toBeLessThan(0.001);
+  });
+
+  it('tints a colored palette’s ends with its hue at the global ends’ lightness', () => {
+    const global = resolveEnds(tset, { light: 'color.gray.50', dark: 'color.gray.900' });
+    const own = rowEnds(blue, global, 'srgb');
+    const lightest = blue.swatches[0]!.info.oklch;
+    expect(own.light.info.oklch.l).toBeCloseTo(global.light.info.oklch.l, 3);
+    expect(own.light.info.oklch.c).toBeGreaterThan(0);
+    expect(own.light.info.oklch.c).toBeLessThan(lightest.c);
+    expect(Math.abs(own.light.info.oklch.h - lightest.h)).toBeLessThan(1);
+    expect(own.dark.info.oklch.l).toBeCloseTo(global.dark.info.oklch.l, 3);
   });
 });
