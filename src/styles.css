@@ -551,7 +551,24 @@ button.curve-btn { border-color: var(--border-strong); }
 .row-heading.collapsed h3 { color: var(--subtle); font-weight: 500; }
 .row-heading.collapsed .meta { color: var(--subtle); }
 
-.unit { display: flex; flex-direction: column; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+/* Units are borderless so a row reads as one range; hovering one outlines it and offers a copy. */
+.unit { display: flex; flex-direction: column; border: 1.5px solid transparent; border-radius: var(--radius-lg); overflow: hidden; cursor: copy; }
+.unit:hover, .unit:focus-visible { border-color: var(--border-strong); outline: none; }
+.unit-fill .copy-mark {
+  position: absolute; left: 50%; top: calc(6px + 24px); transform: translate(-50%, -50%);
+  display: inline-flex; padding: 4px; border-radius: var(--radius-sm); background: var(--surface); color: var(--text);
+  opacity: 0; pointer-events: none; transition: opacity 120ms;
+}
+.unit:hover .copy-mark, .unit:focus-visible .copy-mark { opacity: 0.33; }
+.unit.copied .copy-mark { opacity: 1; }
+/* A hairline keeps very light swatches visible on the page. */
+.unit-fill .swatch-canvas { border-radius: var(--radius); outline: 1px solid var(--border); outline-offset: -1px; }
+/* Pin toggles: faint when off, full when on. */
+button.pin-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 0; width: 18px; height: 18px; padding: 0; border: 0; background: transparent; color: var(--text); opacity: 0.33; cursor: pointer; }
+button.pin-btn:hover:not(:disabled) { background: transparent; opacity: 0.66; }
+button.pin-btn.on, button.pin-btn.on:hover:not(:disabled) { opacity: 1; }
+button.pin-btn .icon { width: 13px; height: 13px; }
+.unit-val .unit-name { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .unit-fill { position: relative; padding: 6px 6px 0; }
 .unit-fill .swatch-canvas { height: 48px; }
 .unit-fill .value-chip { position: absolute; top: 10px; right: 10px; }
@@ -561,7 +578,7 @@ button.curve-btn { border-color: var(--border-strong); }
 .unit-val .value .outl { padding: 0 3px; }
 .unit-val .unit-name { font-family: var(--mono); font-size: var(--font-xs); font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
 .unit-val .lch { display: flex; justify-content: space-between; color: var(--subtle); font-family: var(--mono); }
-.unit-gap { border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); background: repeating-linear-gradient(-45deg, transparent 0 6px, var(--surface-2) 6px 7px); }
+.unit-gap { align-self: start; margin: 7.5px 7.5px 0; height: 48px; border-radius: var(--radius); background: repeating-linear-gradient(-45deg, transparent 0 6px, var(--surface-2) 6px 7px); box-shadow: inset 0 0 0 1px var(--border); }
 
 .rail-label {
   display: flex; align-items: center;
@@ -695,7 +712,8 @@ dialog.curve-editor .meta { font-size: var(--font-sm); margin-top: 6px; margin-b
 .ce-stop.end .ce-stop-step { font-family: var(--sans); }
 .ce-stop.on .swatch-canvas { height: 26px; margin-top: -4px; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text); }
 .ce-stop.on .ce-stop-step { color: var(--text); font-weight: 700; display: inline-flex; align-items: center; gap: 1px; }
-.ce-stop-step .icon { width: 11px; height: 11px; }
+.ce-stop .pin-btn { width: 16px; height: 16px; }
+.ce-stop .pin-btn .icon { width: 11px; height: 11px; }
 .ce-values { grid-template-columns: 56px repeat(3, max-content); column-gap: var(--space-4); }
 .ce-val { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: var(--font-sm); }
 .ce-val b { font-family: var(--sans); font-weight: 600; color: var(--muted); }

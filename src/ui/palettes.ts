@@ -6,14 +6,15 @@ import { checkPalettes, type FlagKind, type ScaleFlag } from '../palette/checks'
 import { stacks, type Stack } from '../palette/columns';
 import type { Palette, PaletteSet, Swatch } from '../palette/detect';
 import type { Settings } from '../model/types';
-import { ALL_THEMES, setPaletteIncluded, store, updateSettings, type AppState } from '../state/app';
+import { ALL_THEMES, setPaletteIncluded, setPins, store, updateSettings, type AppState } from '../state/app';
 import { contrastOf, type ContrastView } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
 import { preview } from '../state/preview';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
 import { contrastControls, paletteContrast, parityPanel } from './contrast';
+import { defaultAnchor } from '../curves/model';
 import { openCurveEditor } from './curve-editor';
-import { h, icon, masked, plural } from './dom';
+import { h, icon, masked, pinButton, plural } from './dom';
 import { FLAG_TIP, flagTip, levelTip, TIP } from './tips';
 
 /**
@@ -54,7 +55,7 @@ const LABEL_COL = 1;
 const STEP_COL = 1;
 const actionCol = (steps: number) => STEP_COL + steps;
 
-type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds' | 'themes' | 'activeTheme'>;
+type View = Pick<AppState, 'model' | 'paletteOverrides' | 'settings' | 'contrastEnds' | 'pins' | 'themes' | 'activeTheme'>;
 
 /** Place a grid cell explicitly (rows and columns are 1-based). */
 function at<T extends HTMLElement>(el: T, row: number, col: number | string, rowSpan = 1): T {
@@ -84,7 +85,7 @@ export class TTPalettes extends HTMLElement {
       store.select(
         (s): View => s,
         () => this.schedule(),
-        (a, b) => a.model === b.model && a.paletteOverrides === b.paletteOverrides && a.settings === b.settings && a.contrastEnds === b.contrastEnds,
+        (a, b) => a.model === b.model && a.paletteOverrides === b.paletteOverrides && a.settings === b.settings && a.contrastEnds === b.contrastEnds && a.pins === b.pins,
       ),
       // Curve drags update the preview many times a second: draw at most once per frame.
       preview.select((s) => s.colors, () => this.schedule()),
@@ -207,7 +208,9 @@ export class TTPalettes extends HTMLElement {
       // A row's own ends follow its colors, so a previewed row gets them re-derived.
       const ends = live ? rowEnds(p, contrast.ends, settings.gamut) : (contrast.rowEnds.get(p.id) ?? contrast.ends);
       const result = live && contrast.levels.length ? analyzePalette(p, ends, contrast.levels) : contrast.results.get(p.id);
-      row = this.paletteRows(cells, row, g.columns, p, !!live, settings, shown, contrast, result, past);
+      // The row's pin (one at most), shared with the curve editor; by default the step a curve edit starts from.
+      const pins = store.get().pins[original.id] ?? (p.swatches.length ? [p.swatches[defaultAnchor(p)]!.step] : []);
+      row = this.paletteRows(cells, row, g.columns, p, !!live, settings, shown, contrast, result, past, pins);
     }
     // A grid of hidden palettes only (nothing shown) has no step columns: just names and eyes.
     const style = g.columns.length ? `--cols: ${g.columns.length}` : 'grid-template-columns: minmax(240px, max-content) 0 0 var(--action-w)';
@@ -226,6 +229,7 @@ export class TTPalettes extends HTMLElement {
     contrast: ContrastView,
     result: PaletteContrast | undefined,
     past: { step: string; end: EndId }[],
+    pins: readonly string[],
   ): number {
     const col = new Map(columns.map((c, i) => [c, STEP_COL + i]));
     const actions = actionCol(columns.length);
@@ -249,7 +253,7 @@ export class TTPalettes extends HTMLElement {
     // has, so a step this row lacks is a gap, wherever it falls.
     columns.forEach((c, i) => {
       const s = byStep.get(c);
-      cells.push(at(s ? this.unit(s, settings, shown, offScale.get(c)) : h('div', { class: 'unit-gap', 'data-tip': TIP.missingStep }), row, STEP_COL + i));
+      cells.push(at(s ? this.unit(s, settings, shown, offScale.get(c), { pinned: pins.includes(s.step), toggle: () => setPins(p.id, pins.includes(s.step) ? [] : [s.step]) }) : h('div', { class: 'unit-gap', 'data-tip': TIP.missingStep }), row, STEP_COL + i));
     });
     row++;
 
@@ -371,7 +375,8 @@ export class TTPalettes extends HTMLElement {
 
   /** One token as a fixed-size unit: its color, and the checks about its value alone. */
   /** `named`: lead with the step name (off where the full token id is shown above, as for loose colors). */
-  private unit(s: Swatch, settings: Settings, shown: Settings['gamut'], offScale?: ScaleFlag, named = true) {
+  /** `pin`: the step's pin toggle in a palette row (absent for loose colors, whose full id is shown above). */
+  private unit(s: Swatch, settings: Settings, shown: Settings['gamut'], offScale?: ScaleFlag, pin?: { pinned: boolean; toggle: () => void }) {
     const value = formatColor(s.info, settings.colorFormat);
     const r = lch(s.info);
     const gamut = !s.info.inP3
@@ -381,24 +386,53 @@ export class TTPalettes extends HTMLElement {
           ? { cls: 'punch', text: 'Out of sRGB', tip: TIP.gamutOutSrgb }
           : { cls: 'outl', text: 'P3', tip: TIP.gamutP3 }
         : undefined;
-    return h(
+    // Click (or Enter) copies the token's name and value; the icon confirms it.
+    const copyIcon = h('span', { class: 'copy-mark', 'aria-hidden': 'true' }, icon('copy'));
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(`${s.token.id}: ${value.text}`);
+      } catch {
+        return;
+      }
+      copyIcon.replaceChildren(icon('check'));
+      unit.classList.add('copied');
+      setTimeout(() => {
+        copyIcon.replaceChildren(icon('copy'));
+        unit.classList.remove('copied');
+      }, 1200);
+    };
+    const unit = h(
       'div',
-      { class: 'unit' },
+      {
+        class: 'unit',
+        role: 'button',
+        tabindex: '0',
+        'aria-label': `Copy ${s.token.id}`,
+        onclick: copy,
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.target === unit && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            void copy();
+          }
+        },
+      },
       h(
         'div',
-        { class: 'unit-fill' },
+        { class: 'unit-fill', 'data-tip': TIP.copyUnit },
         swatchCanvas(s.info, shown, false),
+        copyIcon,
         offScale ? h('span', { class: 'punch id-chip', 'data-tip': `${offScale.message} ${FLAG_TIP.unordered}` }, 'Off-scale') : null,
         gamut ? h('span', { class: `${gamut.cls} value-chip`, 'data-tip': gamut.tip }, gamut.text) : null,
       ),
       h(
         'div',
         { class: 'unit-val' },
-        named ? h('span', { class: 'unit-name', 'data-tip': TIP.unitName }, s.step) : null,
+        pin ? h('span', { class: 'unit-name' }, h('span', { 'data-tip': TIP.unitName }, s.step), pinButton(pin.pinned, s.step, TIP.pinUnit, pin.toggle)) : null,
         h('code', { class: 'value', 'data-tip': TIP.value }, value.approx ? h('span', { class: 'outl', 'data-tip': TIP.approx }, '≈') : null, value.text),
         h('span', { class: 'lch' }, h('span', { 'data-tip': TIP.l }, r.l), h('span', { 'data-tip': TIP.c }, r.c), h('span', { 'data-tip': TIP.h }, r.h)),
       ),
     );
+    return unit;
   }
 
   private loose(set: PaletteSet, settings: Settings, shown: Settings['gamut']) {
@@ -410,7 +444,7 @@ export class TTPalettes extends HTMLElement {
         h(
           'div',
           { class: 'unit-row' },
-          set.loose.map((s) => h('div', { class: 'unit-named' }, h('code', { class: 'col-head' }, s.token.id), this.unit(s, settings, shown, undefined, false))),
+          set.loose.map((s) => h('div', { class: 'unit-named' }, h('code', { class: 'col-head' }, s.token.id), this.unit(s, settings, shown))),
         ),
       ),
     );

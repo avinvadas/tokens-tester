@@ -37,6 +37,12 @@ export interface AppState {
   paletteOverrides: Readonly<Record<string, boolean>>;
   /** Chosen light/dark contrast ends (token ids, "white" or "black"). In memory only, like the overrides. */
   contrastEnds: Readonly<EndChoice>;
+  /**
+   * The pinned step per palette id (a list of one, or empty for none), shared
+   * by the grid and the curve editor. Absent: the palette's default anchor is
+   * pinned. In memory only.
+   */
+  pins: Readonly<Record<string, readonly string[]>>;
   files: SourceFile[];
   /**
    * Themes (light/dark, brands…). Detected from the files until the user edits
@@ -69,6 +75,7 @@ const initial = (settings: Settings): AppState => ({
   settings,
   paletteOverrides: {},
   contrastEnds: {},
+  pins: {},
   files: [],
   themes: [],
   themesCustomized: false,
@@ -153,6 +160,11 @@ export function clearAll() {
 
 export function setPaletteIncluded(id: string, included: boolean) {
   store.set((s) => ({ paletteOverrides: { ...s.paletteOverrides, [id]: included } }));
+}
+
+/** Set a palette's pinned step (an empty list unpins it). */
+export function setPins(paletteId: string, steps: readonly string[]) {
+  store.set((s) => ({ pins: { ...s.pins, [paletteId]: steps } }));
 }
 
 /** Pick the token a global end takes its lightness from. */

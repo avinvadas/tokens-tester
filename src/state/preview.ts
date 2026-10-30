@@ -10,7 +10,12 @@ export interface PreviewState {
   colors: ReadonlyMap<string, ReadonlyMap<string, ColorInfo>>;
 }
 
-export const preview = createStore<PreviewState>({ colors: new Map() });
+const NONE: PreviewState['colors'] = new Map();
+
+export const preview = createStore<PreviewState>({ colors: NONE });
 
 export const setPreview = (colors: ReadonlyMap<string, ReadonlyMap<string, ColorInfo>>) => preview.set({ colors });
-export const clearPreview = () => preview.set({ colors: new Map() });
+export const clearPreview = () => preview.set({ colors: NONE });
+
+/** The colors to show when no edit changes anything, kept identical so the grid does not redraw. */
+export const clearPreviewColors = () => preview.get().colors !== NONE && preview.set({ colors: NONE });

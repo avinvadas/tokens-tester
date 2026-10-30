@@ -70,6 +70,8 @@ export const TIP = {
   gamut: 'The color space your product targets. Colors outside it are flagged and drawn mapped into it.',
   step: 'The step name, taken from the last part of the token path.',
   unitName: 'The step name: the last part of this token’s path.',
+  pinUnit: 'Pin this step: it keeps its color while curve edits change the rest of the row. A row has one pin at most; pinning another step moves it. Click again to unpin.',
+  copyUnit: 'Click to copy the token’s name and value.',
   gamutP3: 'Outside sRGB but inside Display P3: shows correctly only on wide-gamut screens.',
   gamutOut: 'Outside Display P3 too: no common screen can show this color as written.',
   approx: '≈ means the color is outside this format’s range, so the text is the nearest match.',
@@ -117,7 +119,9 @@ export const TIP = {
 
 /** Curve editor controls. */
 export const CURVE_TIP = {
-  anchor: 'The anchor (pinned): the step every curve passes through, shown ◆ on the curve. Any step can be the anchor, including the row’s light and dark ends (dashed). Drag along the strip, or use the arrow keys, to move it.',
+  anchor: 'The anchor: the step in focus. When pinned (filled pin) it keeps its color and every curve passes through it, shown ◆ on the curve. Any step can be the anchor, including the row’s light and dark ends (dashed). Drag along the strip, or use the arrow keys, to move it.',
+  pin: 'Pin this step: it keeps its color while the rest of the row changes, and every curve passes through it. A row has one pin at most; click again to unpin.',
+  anchorPinned: 'The anchor is pinned, so its color is fixed. Unpin it to set its values.',
   anchorEnd: 'The anchor is one of this row’s ends. Its color comes from the global ends, so its values are read-only here; anchoring to it pins the curves to that end.',
   anchorL: 'Anchor lightness, 0 (black) to 100 (white). Editable in the lightness curve.',
   anchorC: 'Anchor chroma: 0 is gray, higher is more colorful. Editable in the chroma curve.',
@@ -133,7 +137,7 @@ export const CURVE_TIP = {
   shift: 'Turn the hue gradually by this many degrees from the anchor toward the last step.',
   contrast: 'Solve lightness so chosen steps just pass a contrast level on the light and dark ends.',
   solve: 'Set those steps’ lightness so they just pass, then smooth the curve through them.',
-  revert: 'Close the panel and drop this edit. The rows go back to the values in your files.',
+  revert: 'Close the panel and drop this edit. The rows go back to the values in your files; pins stay as set.',
   match: 'Every palette gets this palette’s lightness at each step, so the same step has the same contrast everywhere.',
   relative: 'Each palette keeps its own anchor lightness and follows the curve’s shape from there.',
   reset: 'Go back to the palette’s current values.',

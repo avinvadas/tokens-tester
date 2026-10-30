@@ -12,8 +12,10 @@ import { interpolate, type Point } from './spline';
  * The curve editor's model. A palette's steps sit at positions t = 0…1 in
  * scale order. Lightness, chroma and hue are each a curve through handles;
  * the generated palette is the curves evaluated at every step, mapped into
- * the target gamut. One step is the anchor: every curve passes through the
- * anchor color, which the user can set directly.
+ * the target gamut. One step is the anchor, the step in focus. A row has at
+ * most one pin, on its anchor: a pinned step keeps its color whatever the
+ * curves do, and every curve passes through it. Without a pin the curves
+ * run freely.
  *
  * Hue is stored unwrapped around the anchor (anchor 350°, a step at 10° is
  * stored as 370°) so curves never jump across 0°.
@@ -32,10 +34,19 @@ export interface Lch {
   h: number;
 }
 
+/** The pinned step and the color it is held at. */
+export interface Hold {
+  index: number;
+  color: Lch;
+}
+
 export interface CurveState {
-  /** Index of the anchor step. */
+  /** Index of the anchor: the step in focus. */
   anchor: number;
+  /** The anchor's color: held there when pinned, otherwise what the curves give. */
   anchorColor: Lch;
+  /** Whether the anchor is pinned. */
+  pinned: boolean;
   curves: Record<Channel, Curve>;
   /** Other palettes the same curves are applied to. */
   batch: string[];
@@ -90,12 +101,19 @@ export function currentCurves(p: Palette, anchor: number): Record<Channel, Curve
   };
 }
 
-export function initialState(p: Palette, anchor = defaultAnchor(p)): CurveState {
+/** The palette as it is, pinned on `pin` (default: the default anchor; null: no pin). */
+export function initialState(p: Palette, pin: number | null = defaultAnchor(p)): CurveState {
+  const anchor = pin ?? defaultAnchor(p);
   const curves = currentCurves(p, anchor);
-  const a = p.swatches[anchor]!.info.oklch;
+  const base = baseHue(p, anchor);
+  const colorAt = (i: number): Lch => {
+    const o = p.swatches[i]!.info.oklch;
+    return { l: o.l, c: o.c, h: unwrap(o.h, base) };
+  };
   return {
     anchor,
-    anchorColor: { l: a.l, c: a.c, h: unwrap(a.h, baseHue(p, anchor)) },
+    anchorColor: colorAt(anchor),
+    pinned: pin !== null,
     curves,
     batch: [],
     lightness: 'match',
@@ -113,27 +131,55 @@ function normalize(points: Point[]): Point[] {
 
 export const anchorT = (p: Palette, s: CurveState) => positions(p)[s.anchor]!;
 
-/** Pin each curve to the anchor color at the anchor position. */
-export function pinAnchor(p: Palette, s: CurveState): CurveState {
-  const tA = anchorT(p, s);
-  const pin = (c: Curve, v: number): Curve => ({ ...c, points: normalize([...c.points.filter((q) => Math.abs(q.t - tA) > EPS), { t: tA, v }]) });
-  return { ...s, curves: { l: pin(s.curves.l, s.anchorColor.l), c: pin(s.curves.c, s.anchorColor.c), h: pin(s.curves.h, s.anchorColor.h) } };
+/** The pinned step with its color, if any. */
+export function pins(s: CurveState): Hold[] {
+  return s.pinned ? [{ index: s.anchor, color: s.anchorColor }] : [];
 }
 
+/** Pin each curve to the pinned step's color at its position. */
+export function pinAnchor(p: Palette, s: CurveState): CurveState {
+  const t = positions(p);
+  const held = pins(s).map((x) => ({ t: t[x.index]!, color: x.color }));
+  const pin = (c: Curve, ch: Channel): Curve => ({
+    ...c,
+    points: normalize([...c.points.filter((q) => held.every((x) => Math.abs(q.t - x.t) > EPS)), ...held.map((x) => ({ t: x.t, v: x.color[ch] }))]),
+  });
+  return { ...s, curves: { l: pin(s.curves.l, 'l'), c: pin(s.curves.c, 'c'), h: pin(s.curves.h, 'h') } };
+}
+
+/**
+ * Set the anchor's color and pin it there. A pinned anchor is fixed: it
+ * keeps its color until it is unpinned.
+ */
 export function setAnchorColor(p: Palette, s: CurveState, color: Partial<Lch>): CurveState {
+  if (s.pinned) return s;
   const anchorColor = {
     l: clamp(color.l ?? s.anchorColor.l, 0, 1),
     c: clamp(color.c ?? s.anchorColor.c, 0, C_MAX),
     h: color.h !== undefined ? unwrap(color.h, s.anchorColor.h) : s.anchorColor.h,
   };
-  return pinAnchor(p, { ...s, anchorColor });
+  return pinAnchor(p, { ...s, anchorColor, pinned: true });
 }
 
-/** Move the anchor to another step; it takes the value the curves give there. */
+const curveColor = (s: CurveState, t: number): Lch => ({ l: evaluate(s.curves.l)(t), c: evaluate(s.curves.c)(t), h: evaluate(s.curves.h)(t) });
+
+/**
+ * Move the anchor to another step. A pinned anchor carries its pin along: the
+ * step it leaves is free again, the step it reaches is held at the color it
+ * has now.
+ */
 export function setAnchorStep(p: Palette, s: CurveState, index: number): CurveState {
-  const t = positions(p)[index]!;
-  const anchorColor = { l: evaluate(s.curves.l)(t), c: evaluate(s.curves.c)(t), h: evaluate(s.curves.h)(t) };
-  return pinAnchor(p, { ...s, anchor: index, anchorColor });
+  if (index === s.anchor) return s;
+  return pinAnchor(p, { ...s, anchor: index, anchorColor: curveColor(s, positions(p)[index]!) });
+}
+
+/**
+ * Pin or unpin a step. A row has one pin at most: pinning a step moves the
+ * pin there, held at the color the step has now.
+ */
+export function togglePin(p: Palette, s: CurveState, index: number): CurveState {
+  if (index === s.anchor) return pinAnchor(p, { ...s, pinned: !s.pinned, anchorColor: s.pinned ? s.anchorColor : curveColor(s, positions(p)[index]!) });
+  return pinAnchor(p, { ...s, anchor: index, pinned: true, anchorColor: curveColor(s, positions(p)[index]!) });
 }
 
 // ---------------------------------------------------------------------------
@@ -143,8 +189,10 @@ export type LPreset = 'current' | 'linear' | 'ease';
 export type CPreset = 'current' | 'bell' | 'flat';
 export type HPreset = 'current' | 'constant' | 'shift';
 
+/** A curve from `first` to `last` through every pin (a pin on an end wins over it). */
 function threePoint(p: Palette, s: CurveState, ch: Channel, first: number, last: number, smooth: boolean): Curve {
-  return { smooth, points: normalize([{ t: 0, v: first }, { t: 1, v: last }, { t: anchorT(p, s), v: s.anchorColor[ch] }]) };
+  const t = positions(p);
+  return { smooth, points: normalize([{ t: 0, v: first }, { t: 1, v: last }, ...pins(s).map((x) => ({ t: t[x.index]!, v: x.color[ch] }))]) };
 }
 
 export function presetL(p: Palette, s: CurveState, kind: LPreset): CurveState {
@@ -223,8 +271,9 @@ export function maxChroma(l: number, h: number, gamut: Gamut): number {
  * step name where the names are shared, by index otherwise. Chroma scales and
  * hue shifts with each palette's own anchor; lightness either matches the
  * source exactly (same contrast at the same step) or shifts with the anchor.
+ * The target's own pinned step (`keep`) stays as it is.
  */
-export function generateFor(target: Palette, source: Palette, s: CurveState, gamut: Gamut): GenStep[] {
+export function generateFor(target: Palette, source: Palette, s: CurveState, gamut: Gamut, keep?: string): GenStep[] {
   const srcT = new Map(source.swatches.map((sw, i) => [sw.step, positions(source)[i]!]));
   const tgtPos = positions(target);
   const t = target.swatches.map((sw, i) => srcT.get(sw.step) ?? tgtPos[i]!);
@@ -237,6 +286,7 @@ export function generateFor(target: Palette, source: Palette, s: CurveState, gam
   const hueBase = Number.isNaN(a.h) ? s.anchorColor.h : a.h;
   return target.swatches.map((sw, i) => {
     const x = t[i]!;
+    if (sw.step === keep) return { step: sw.step, t: x, wanted: { l: sw.info.oklch.l, c: sw.info.oklch.c, h: sw.info.oklch.h }, info: sw.info, mapped: false };
     const l = s.lightness === 'match' ? fl(x) : a.l + fl(x) - fl(tA);
     return step(sw, x, { l: clamp(l, 0, 1), c: clamp(fc(x) * chromaScale, 0, C_MAX), h: hueBase + fh(x) - fh(tA) }, gamut);
   });
@@ -284,8 +334,8 @@ export function contrastTargetedL(p: Palette, s: CurveState, targets: ContrastTa
   for (const target of targets) {
     const x = t[target.index]!;
     const step = p.swatches[target.index]!.step;
-    if (target.index === s.anchor) {
-      notes.push(`${step} is the anchor, so its lightness stays as set.`);
+    if (pins(s).some((x) => x.index === target.index)) {
+      notes.push(`${step} is pinned, so its lightness stays as set.`);
       continue;
     }
     const l = solveL(fc(x), fh(x), p.swatches[target.index]!.info.oklch.alpha, target.end, level, gamut);
@@ -295,13 +345,13 @@ export function contrastTargetedL(p: Palette, s: CurveState, targets: ContrastTa
     }
     points.push({ t: x, v: l });
   }
-  points.push({ t: anchorT(p, s), v: s.anchorColor.l });
+  for (const x of pins(s)) points.push({ t: t[x.index]!, v: x.color.l });
   const sorted = normalize(points);
   // Lightness must keep one direction; report a target that breaks it.
   const dir = Math.sign(sorted.at(-1)!.v - sorted[0]!.v);
   for (let i = 1; i < sorted.length; i++) {
     if (dir !== 0 && Math.sign(sorted[i]!.v - sorted[i - 1]!.v) === -dir) {
-      notes.push('The targets and the anchor ask for lightness to reverse direction; move the anchor or a target step.');
+      notes.push('The targets and the pins ask for lightness to reverse direction; move a pin or a target step.');
       break;
     }
   }

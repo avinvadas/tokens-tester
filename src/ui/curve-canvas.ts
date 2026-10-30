@@ -8,7 +8,8 @@ import type { Point } from '../curves/spline';
  * Mouse: drag a handle; double-click empty space to add a handle, or a
  * handle to remove it. Keyboard (canvas focused): ←/→ choose a handle,
  * ↑/↓ change its value (Shift for bigger steps), Delete removes it.
- * The first, last and anchor handles stay at their step positions.
+ * The first and last handles stay at their step positions; a pinned handle
+ * (◆) does not move at all.
  */
 
 export interface CurveCanvasOptions {
@@ -16,7 +17,8 @@ export interface CurveCanvasOptions {
   domain: () => [number, number];
   positions: number[];
   labels: string[];
-  anchorT: () => number;
+  /** Positions of the pinned steps, drawn ◆. */
+  pinTs: () => number[];
   curve: () => Curve;
   /** Current palette values per step (hollow dots). */
   before: () => number[];
@@ -88,10 +90,10 @@ export class CurveCanvas {
   }
 
   private pinned(p: Point) {
-    return p.t <= 1e-6 || p.t >= 1 - 1e-6 || Math.abs(p.t - this.o.anchorT()) < 1e-6;
+    return p.t <= 1e-6 || p.t >= 1 - 1e-6 || this.isAnchor(p);
   }
   private isAnchor(p: Point) {
-    return Math.abs(p.t - this.o.anchorT()) < 1e-6;
+    return this.o.pinTs().some((t) => Math.abs(p.t - t) < 1e-6);
   }
 
   private hit(e: PointerEvent | MouseEvent) {
@@ -131,12 +133,14 @@ export class CurveCanvas {
 
   private move(e: PointerEvent) {
     if (!this.drag) {
-      this.canvas.style.cursor = this.hit(e).index === -1 ? 'crosshair' : 'grab';
+      const { index } = this.hit(e);
+      this.canvas.style.cursor = index === -1 ? 'crosshair' : this.isAnchor(this.o.curve().points[index]!) ? 'not-allowed' : 'grab';
       return;
     }
     const r = this.canvas.getBoundingClientRect();
     const pts = this.o.curve().points.map((p) => ({ ...p }));
     const p = pts[this.drag.index]!;
+    if (this.isAnchor(p)) return;
     p.v = this.v(e.clientY - r.top);
     if (!this.pinned(p)) {
       const lo = (pts[this.drag.index - 1]?.t ?? 0) + 0.01;
@@ -176,7 +180,7 @@ export class CurveCanvas {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       this.selected = this.selected === -1 ? 0 : Math.min(pts.length - 1, Math.max(0, this.selected + (e.key === 'ArrowRight' ? 1 : -1)));
       this.draw();
-    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && this.selected !== -1) {
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && this.selected !== -1 && !this.isAnchor(pts[this.selected]!)) {
       const next = pts.map((p, i) => (i === this.selected ? { ...p, v: Math.min(hi, Math.max(lo, p.v + (e.key === 'ArrowUp' ? step : -step))) } : p));
       this.update(next, true);
     } else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selected !== -1 && !this.pinned(pts[this.selected]!)) {

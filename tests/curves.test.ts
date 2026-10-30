@@ -14,7 +14,9 @@ import {
   presetH,
   presetL,
   setAnchorColor,
+  pins,
   setAnchorStep,
+  togglePin,
   toEdits,
 } from '../src/curves/model';
 import { interpolate } from '../src/curves/spline';
@@ -66,8 +68,9 @@ describe('starting state', () => {
 });
 
 describe('editing', () => {
-  it('changing the anchor color changes only the anchor step', () => {
-    const s = setAnchorColor(blue, initialState(blue), { l: 0.6 });
+  it('setting an unpinned anchor’s color changes only that step, and pins it', () => {
+    const s = setAnchorColor(blue, initialState(blue, null), { l: 0.6 });
+    expect(s.pinned).toBe(true);
     const edits = toEdits(blue, generate(blue, s, 'srgb'));
     expect(edits).toHaveLength(1);
     expect(edits[0]!.path).toEqual(['color', 'blue', '500', '$value']);
@@ -99,6 +102,34 @@ describe('editing', () => {
     const g = generate(blue, s, 'p3');
     expect(g[0]!.wanted.h).toBeCloseTo(s.anchorColor.h - 15, 6);
     expect(g.at(-1)!.wanted.h).toBeCloseTo(s.anchorColor.h + 15, 6);
+  });
+
+  it('keeps a pinned step’s color whatever the curves do', () => {
+    const i200 = blue.swatches.findIndex((x) => x.step === '200');
+    const s = presetC(blue, presetL(blue, initialState(blue, i200), 'linear'), 'bell');
+    const g = generate(blue, s, 'srgb');
+    expect(g[i200]!.info).toBe(blue.swatches[i200]!.info);
+    // Its values cannot be set while it is pinned.
+    expect(setAnchorColor(blue, s, { l: 0.3 })).toBe(s);
+  });
+
+  it('has one pin at most: pinning another step moves it, and it can be removed', () => {
+    const s1 = togglePin(blue, initialState(blue), 2);
+    expect(pins(s1).map((x) => blue.swatches[x.index]!.step)).toEqual(['200']);
+    const s2 = togglePin(blue, s1, 2);
+    expect(pins(s2)).toEqual([]);
+    // With no pin a linear lightness runs straight from end to end.
+    const l = ls(generate(blue, presetL(blue, s2, 'linear'), 'srgb'));
+    const step = (l[0]! - l.at(-1)!) / (l.length - 1);
+    for (let k = 1; k < l.length; k++) expect(l[k - 1]! - l[k]!).toBeCloseTo(step, 2);
+    expect(initialState(blue, null).pinned).toBe(false);
+  });
+
+  it('keeps another palette’s pinned step when the curves are applied to it', () => {
+    const s = presetL(blue, initialState(blue), 'linear');
+    const g = generateFor(red, blue, s, 'srgb', '200');
+    const i = red.swatches.findIndex((x) => x.step === '200');
+    expect(g[i]!.info).toBe(red.swatches[i]!.info);
   });
 
   it('maps edited colors into the target gamut and says so', () => {
@@ -152,14 +183,14 @@ describe('contrast-targeted lightness', () => {
 
   it('reports targets that would reverse the lightness direction', () => {
     // A dark anchor near the light end, then a target further along that must be lighter.
-    const s0 = setAnchorColor(gray, setAnchorStep(gray, initialState(gray), 1), { l: 0.3 });
+    const s0 = setAnchorColor(gray, setAnchorStep(gray, initialState(gray, null), 1), { l: 0.3 });
     const { notes } = contrastTargetedL(gray, s0, [{ index: 5, end: ends.light }], aa, 'srgb');
     expect(notes.join(' ')).toMatch(/reverse direction/);
   });
 
-  it('reports a step that is the anchor or cannot reach the level', () => {
+  it('reports a step that is pinned or cannot reach the level', () => {
     const s0 = setAnchorStep(gray, initialState(gray), 3);
-    expect(contrastTargetedL(gray, s0, [{ index: 3, end: ends.light }], aa, 'srgb').notes.join(' ')).toMatch(/anchor/);
+    expect(contrastTargetedL(gray, s0, [{ index: 3, end: ends.light }], aa, 'srgb').notes.join(' ')).toMatch(/pinned/);
     const lightEnd = { ...ends.light, info: colorInfo({ colorSpace: 'srgb', components: [0.3, 0.3, 0.3] })! };
     const aaa = levelsFor(['wcag-aaa'])[0]!;
     expect(contrastTargetedL(gray, s0, [{ index: 6, end: lightEnd }], aaa, 'srgb').notes.join(' ')).toMatch(/can't reach/);

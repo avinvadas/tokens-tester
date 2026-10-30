@@ -2,9 +2,9 @@ import type { ColorInfo, Gamut } from '../color/format';
 import type { End, EndId } from '../contrast/analyze';
 import { rowEnds } from '../contrast/ends';
 import {
-  anchorT,
   C_MAX,
   contrastTargetedL,
+  defaultAnchor,
   generate,
   generateFor,
   initialState,
@@ -15,6 +15,8 @@ import {
   presetL,
   setAnchorColor,
   setAnchorStep,
+  pins,
+  togglePin,
   toEdits,
   evaluate,
   type CurveState,
@@ -22,13 +24,13 @@ import {
 } from '../curves/model';
 import type { Model } from '../model/types';
 import type { Palette } from '../palette/detect';
-import { allModels, applyEdits, store } from '../state/app';
+import { allModels, applyEdits, setPins, store } from '../state/app';
 import { contrastOf } from '../state/contrast';
 import { palettesOf } from '../state/palettes';
-import { clearPreview, preview, setPreview } from '../state/preview';
+import { clearPreview, clearPreviewColors, preview, setPreview } from '../state/preview';
 import { displayGamut, paintAll, swatchCanvas } from './canvas';
 import { CurveCanvas } from './curve-canvas';
-import { h, icon, masked, plural } from './dom';
+import { h, masked, pinButton, plural } from './dom';
 import { CURVE_TIP } from './tips';
 
 /**
@@ -54,11 +56,20 @@ export function openCurveEditor(paletteId: string, focus: 'l' | 'c' | 'h' = 'l')
   const within = view.within.get(paletteId) ?? palette;
   const ends = view.rowEnds.get(paletteId) ?? view.ends;
   const row: Palette = { ...within, swatches: [endSwatch('light', ends.light.info), ...within.swatches, endSwatch('dark', ends.dark.info)] };
-  const editor = new CurveEditor(row, set.palettes.filter((p) => p.included && p.id !== paletteId), state.settings.gamut, view.ends);
+  // The row's pin, shared with the grid; by default its default anchor.
+  const steps = state.pins[paletteId] ?? (within.swatches.length ? [within.swatches[defaultAnchor(within)]!.step] : []);
+  const pin = steps.length ? row.swatches.findIndex((s) => s.step === steps[0]) : -1;
+  const editor = new CurveEditor(row, set.palettes.filter((p) => p.included && p.id !== paletteId), state.settings.gamut, view.ends, pin === -1 ? null : pin);
   current = editor;
   document.body.append(editor.dialog);
   editor.dialog.show();
   editor.focus(focus);
+}
+
+/** A palette's pinned step: as set on the grid, otherwise its default anchor. */
+function pinOf(p: Palette): string | undefined {
+  const set = store.get().pins[p.id];
+  return set ? set[0] : p.swatches.length ? p.swatches[defaultAnchor(p)]!.step : undefined;
 }
 
 /** A row end as a curve point. It has no token: its color always comes from the global ends. */
@@ -99,8 +110,10 @@ class CurveEditor {
     private others: Palette[],
     private gamut: Gamut,
     private globalEnds: Record<EndId, End>,
+    /** The row's pin, if any. Shared with the grid; it stays as set whether the edit is applied or reverted. */
+    pin: number | null,
   ) {
-    this.s = initialState(p);
+    this.s = initialState(p, pin);
     this.shown = displayGamut(gamut);
     this.build();
     this.dialog.addEventListener('close', () => {
@@ -109,6 +122,7 @@ class CurveEditor {
       window.removeEventListener('scroll', this.place, true);
       window.removeEventListener('resize', this.place);
       this.unsubPreview?.();
+      this.unsubPins?.();
       if (current === this) {
         current = undefined;
         clearPreview();
@@ -122,7 +136,23 @@ class CurveEditor {
     window.addEventListener('resize', this.place);
     // The grid redraws its buttons on every preview change; follow ours once it has.
     this.unsubPreview = preview.subscribe(() => requestAnimationFrame(() => requestAnimationFrame(this.place)));
+    // Pins toggled on the grid while the panel is open reach the curves too.
+    this.unsubPins = store.select(
+      (s) => s.pins[this.p.id],
+      (steps) => {
+        if (!steps) return;
+        const want = new Set(steps);
+        let next = this.s;
+        this.p.swatches.forEach((sw, i) => {
+          const on = pins(next).some((x) => x.index === i);
+          if (on !== want.has(sw.step)) next = togglePin(this.p, next, i);
+        });
+        if (next !== this.s) this.set(next, true);
+      },
+    );
   }
+
+  private unsubPins?: () => void;
 
   // -------------------------------------------------------------------------
   // State
@@ -141,10 +171,6 @@ class CurveEditor {
   private onCurve(ch: 'l' | 'c' | 'h', curve: CurveState['curves']['l'], commit: boolean) {
     if (!commit && !this.dragStart) this.dragStart = this.s;
     const next = { ...this.s, curves: { ...this.s.curves, [ch]: curve } };
-    // Dragging the anchor handle moves the anchor color.
-    const tA = anchorT(this.p, next);
-    const a = curve.points.find((q) => Math.abs(q.t - tA) < 1e-6);
-    if (a) next.anchorColor = { ...next.anchorColor, [ch]: a.v };
     if (commit) {
       this.history.push(this.dragStart ?? this.s);
       this.future = [];
@@ -173,7 +199,7 @@ class CurveEditor {
   private generated(): { source: GenStep[]; batch: { palette: Palette; gen: GenStep[] }[] } {
     return {
       source: this.withEnds(generate(this.p, this.s, this.gamut)),
-      batch: this.others.filter((o) => this.s.batch.includes(o.id)).map((o) => ({ palette: o, gen: generateFor(o, this.p, this.s, this.gamut) })),
+      batch: this.others.filter((o) => this.s.batch.includes(o.id)).map((o) => ({ palette: o, gen: generateFor(o, this.p, this.s, this.gamut, pinOf(o)) })),
     };
   }
 
@@ -225,7 +251,7 @@ class CurveEditor {
       h(
         'p',
         { class: 'meta' },
-        'Each curve runs across the steps and passes through the anchor (◆). Drag handles, double-click to add or remove one. Hollow dots are the current colors, filled dots the result.',
+        'Each curve runs across the steps and passes through every pinned step (◆). Drag handles, double-click to add or remove one. Hollow dots are the current colors, filled dots the result.',
       ),
       ...this.anchorRow(),
       h('div', { class: 'ce-curves' },
@@ -253,7 +279,7 @@ class CurveEditor {
         { class: 'ce-foot' },
         this.undoButton,
         this.redoButton,
-        h('button', { type: 'button', 'data-tip': CURVE_TIP.reset, onclick: () => this.set(initialState(this.p, this.s.anchor), true) }, 'Reset'),
+        h('button', { type: 'button', 'data-tip': CURVE_TIP.reset, onclick: () => this.set(initialState(this.p, this.s.pinned ? this.s.anchor : null), true) }, 'Reset'),
         h('span', { class: 'spacer' }),
         h('button', { type: 'button', onclick: close, 'data-tip': CURVE_TIP.revert }, 'Revert'),
         this.applyButton,
@@ -356,7 +382,13 @@ class CurveEditor {
           'span',
           { class: `ce-stop${k === i ? ' on' : ''}${this.p.swatches[k]!.derived ? ' end' : ''}` },
           swatchCanvas(x.info, this.shown),
-          h('span', { class: 'ce-stop-step' }, this.p.swatches[k]!.step, k === i ? icon('pin') : null),
+          h('span', { class: 'ce-stop-step' }, this.p.swatches[k]!.step),
+          pinButton(
+            pins(this.s).some((x) => x.index === k),
+            this.p.swatches[k]!.step,
+            CURVE_TIP.pin,
+            () => this.set(togglePin(this.p, this.s, k), true),
+          ),
         ),
       ),
     );
@@ -368,11 +400,13 @@ class CurveEditor {
     const text = { l: (a.l * 100).toFixed(1), c: a.c.toFixed(3), h: (((a.h % 360) + 360) % 360).toFixed(1) };
     // An end as anchor pins the curves to the end's color, which only the global ends can change.
     const atEnd = !!this.p.swatches[this.s.anchor]?.derived;
-    this.values.dataset.tip = atEnd ? CURVE_TIP.anchorEnd : '';
+    // A pinned anchor is fixed; unpin it to set its color.
+    const fixed = atEnd || this.s.pinned;
+    this.values.dataset.tip = atEnd ? CURVE_TIP.anchorEnd : this.s.pinned ? CURVE_TIP.anchorPinned : '';
     for (const ch of ['l', 'c', 'h'] as const) {
       const input = this.anchorInputs[ch]!;
       const range = this.ranges[ch]!;
-      const edited = ch === this.channel && !atEnd;
+      const edited = ch === this.channel && !fixed;
       this.editors[ch]!.hidden = !edited;
       this.readouts[ch]!.hidden = edited;
       this.readouts[ch]!.textContent = text[ch];
@@ -395,7 +429,7 @@ class CurveEditor {
       domain: () => (ch === 'l' ? [0, 1] : ch === 'c' ? [0, chromaTop()] : hueSpan()),
       positions: t,
       labels: this.p.swatches.map((s) => s.step),
-      anchorT: () => anchorT(this.p, this.s),
+      pinTs: () => pins(this.s).map((x) => t[x.index]!),
       curve: () => this.s.curves[ch],
       before: () =>
         this.p.swatches.map((s) => (ch === 'h' ? (Number.isNaN(s.info.oklch.h) ? this.s.anchorColor.h : unwrapNear(s.info.oklch.h, this.s.anchorColor.h)) : s.info.oklch[ch])),
@@ -498,6 +532,7 @@ class CurveEditor {
     return this.p.id;
   }
 
+
   /** Show one channel's curve and point the panel at that channel's button. */
   focus(ch: 'l' | 'c' | 'h') {
     this.channel = ch;
@@ -551,7 +586,11 @@ class CurveEditor {
     // Rows show the preview only once the curves change something.
     const byStep = (gen: GenStep[]) => new Map(gen.map((x) => [x.step, x.info]));
     if (edits.length) setPreview(new Map([[this.p.id, byStep(g.source.filter((_, i) => !this.p.swatches[i]!.derived))], ...g.batch.map((b) => [b.palette.id, byStep(b.gen)] as const)]));
-    else clearPreview();
+    else clearPreviewColors();
+    // Pins are shared with the grid.
+    const steps = pins(this.s).map((x) => this.p.swatches[x.index]!.step);
+    const shared = store.get().pins[this.p.id];
+    if (!shared || shared.join('\u0000') !== steps.join('\u0000')) setPins(this.p.id, steps);
     const mapped = g.source.filter((x) => x.mapped).length + g.batch.reduce((n, b) => n + b.gen.filter((x) => x.mapped).length, 0);
     this.mappedNote.textContent = mapped ? `${plural(mapped, 'color')} asked for by the curves ${mapped === 1 ? 'is' : 'are'} outside the gamut and mapped down (ringed dots on the chroma curve).` : '';
     if (full) {
