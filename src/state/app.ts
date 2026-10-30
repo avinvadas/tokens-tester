@@ -5,6 +5,7 @@ import { deleteIn, renameIn, setIn, type JDoc } from '../json/cst';
 import { isStudioMetaFile } from '../model/format';
 import type { Edit, Fix, Model, Settings, SourceFile } from '../model/types';
 import { detectThemes, type Theme } from '../themes/detect';
+import { NO_PAIR_EDITS, type PairEdits, type PairKind, pairId } from '../semantic/pairs';
 import { mergeModels, orphanIssues, type ThemeModel } from '../themes/merge';
 import { analyze } from '../validate';
 import { loadSettings, saveSettings } from './settings';
@@ -43,6 +44,8 @@ export interface AppState {
    * pinned. In memory only.
    */
   pins: Readonly<Record<string, readonly string[]>>;
+  /** The user's changes to the foreground/background pairs found by name. In memory only. */
+  pairEdits: PairEdits;
   files: SourceFile[];
   /**
    * Themes (light/dark, brands…). Detected from the files until the user edits
@@ -76,6 +79,7 @@ const initial = (settings: Settings): AppState => ({
   paletteOverrides: {},
   contrastEnds: {},
   pins: {},
+  pairEdits: NO_PAIR_EDITS,
   files: [],
   themes: [],
   themesCustomized: false,
@@ -165,6 +169,39 @@ export function setPaletteIncluded(id: string, included: boolean) {
 /** Set a palette's pinned step (an empty list unpins it). */
 export function setPins(paletteId: string, steps: readonly string[]) {
   store.set((s) => ({ pins: { ...s.pins, [paletteId]: steps } }));
+}
+
+// ---------------------------------------------------------------------------
+// Semantic pairs
+
+/** Add a pair of the user's own. */
+export function addPair(fg: string, bg: string, kind: PairKind) {
+  const id = pairId(fg, bg);
+  store.set(({ pairEdits: e }) => ({
+    pairEdits: {
+      ...e,
+      added: e.added.some((p) => p.id === id) ? e.added : [...e.added, { id, fg, bg, kind, source: 'user' }],
+      removed: e.removed.filter((r) => r !== id),
+    },
+  }));
+}
+
+/** Remove a pair: a user's pair is forgotten, a detected one is hidden. */
+export function removePair(id: string) {
+  store.set(({ pairEdits: e }) =>
+    e.added.some((p) => p.id === id)
+      ? { pairEdits: { ...e, added: e.added.filter((p) => p.id !== id) } }
+      : { pairEdits: { ...e, removed: [...e.removed, id] } },
+  );
+}
+
+export function setPairKind(id: string, kind: PairKind) {
+  store.set(({ pairEdits: e }) => ({ pairEdits: { ...e, kinds: { ...e.kinds, [id]: kind } } }));
+}
+
+/** Forget the user's pair changes and use the pairs found by name. */
+export function resetPairs() {
+  store.set({ pairEdits: NO_PAIR_EDITS });
 }
 
 /** Pick the token a global end takes its lightness from. */

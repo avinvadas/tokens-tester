@@ -14,7 +14,8 @@ import { TIP } from './tips';
 
 const END_LABEL: Record<EndId, string> = { light: 'Light end', dark: 'Dark end' };
 
-export function contrastControls(settings: Settings, set: PaletteSet, view: ContrastView) {
+/** Toggles for the compliance targets, shared by Base colors and Semantic. */
+export function targetToggles(settings: Settings) {
   const toggle = (t: ContrastTarget, label: string) => {
     const on = settings.contrast.includes(t);
     return h(
@@ -29,6 +30,10 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
       label,
     );
   };
+  return h('div', { class: 'chips', role: 'group', 'aria-label': 'Contrast compliance targets' }, TARGETS.map((t) => toggle(t.id, t.label)));
+}
+
+export function contrastControls(settings: Settings, set: PaletteSet, view: ContrastView) {
   const groups = endCandidates(set);
   // Each end is a neutral token, picked by name; only its lightness is used.
   // Tokens that would not stay on their side of the other end are disabled,
@@ -59,7 +64,7 @@ export function contrastControls(settings: Settings, set: PaletteSet, view: Cont
     'div',
     { class: 'contrast-controls' },
     h('span', { class: 'label' }, 'Contrast:'),
-    h('div', { class: 'chips', role: 'group', 'aria-label': 'Contrast compliance targets' }, TARGETS.map((t) => toggle(t.id, t.label))),
+    targetToggles(settings),
     settings.contrast.length ? [picker('light'), picker('dark')] : null,
     settings.contrast.length
       ? h('span', { class: 'legend' }, 'Pick a neutral token for each end of the system; only its lightness is used. Each row gets its own ends at that lightness, tinted with its hue, and marks where each level is first reached as text on them.')

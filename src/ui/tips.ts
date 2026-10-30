@@ -13,9 +13,21 @@ export const TIP = {
   navThemes: 'Which files each theme reads, such as light and dark.',
   navIssues: 'Problems with the DTCG format, with suggested fixes. The number counts errors and warnings.',
   navColors: 'Base color palettes: scale checks, gamut and contrast, and the curve editor.',
-  navSemantic: 'Coming next: foreground and background pairs checked under color-vision deficiencies, with safer alias suggestions.',
+  navSemantic: 'Foreground and background pairs found by name, checked for contrast in every theme. The number counts pairs.',
   navTokens: 'Every token with its written and resolved value.',
   themePick: 'The theme that Issues, Base colors and Tokens show. “All themes” combines them: a check fails if it fails in any theme.',
+
+  // Semantic pairs
+  pairKind: 'Text must reach the text level (AA 4.5, AAA 7, Lc 60). UI parts such as icons and borders need the non-text level (3, or Lc 45).',
+  pairFailText: 'Text pairs below the text level in at least one theme.',
+  pairFailUi: 'Icon, border and other UI pairs below the non-text level in at least one theme.',
+  pairMissing: 'One of the two tokens is not in this theme.',
+  pairAdded: 'A pair you added.',
+  pairRemove: 'Stop checking this pair. Nothing changes in your files.',
+  pairRealias: 'Point this pair’s tokens at other existing tokens, theme by theme. Only the references change.',
+  pairOwnValue: 'This token has a color value of its own rather than a reference, so there is nothing to re-point.',
+  pairRealiasFile: 'The file the reference is written in. Themes that read the same file change together.',
+  pairsReset: 'Forget the pairs you added, removed or re-kinded.',
 
   // Files
   unchanged: 'Exporting now gives back exactly the bytes you loaded.',

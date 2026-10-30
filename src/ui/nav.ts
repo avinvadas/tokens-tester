@@ -1,4 +1,5 @@
 import { ALL_THEMES, setActiveTheme, store, type AppState } from '../state/app';
+import { pairsOf } from '../state/pairs';
 import { palettesOf } from '../state/palettes';
 import { h, masked, severityIcon } from './dom';
 import { TIP } from './tips';
@@ -25,7 +26,7 @@ const VIEWS: ViewDef[] = [
   { id: 'themes', label: 'Themes', needsFiles: true, tip: TIP.navThemes },
   { id: 'issues', label: 'Issues', needsFiles: true, tip: TIP.navIssues },
   { id: 'colors', label: 'Base colors', needsFiles: true, tip: TIP.navColors },
-  { id: 'semantic', label: 'Semantic & vision', needsFiles: true, soon: true, tip: TIP.navSemantic },
+  { id: 'semantic', label: 'Semantic', needsFiles: true, tip: TIP.navSemantic },
   { id: 'tokens', label: 'Tokens', needsFiles: true, tip: TIP.navTokens },
 ];
 
@@ -73,7 +74,7 @@ function show(id: ViewId) {
 
 let current: ViewId = 'files';
 
-type View = Pick<AppState, 'files' | 'model' | 'themes' | 'activeTheme' | 'themeModels' | 'loadErrors' | 'paletteOverrides' | 'settings'>;
+type View = Pick<AppState, 'files' | 'model' | 'themes' | 'activeTheme' | 'themeModels' | 'loadErrors' | 'paletteOverrides' | 'settings' | 'pairEdits'>;
 type Tone = 'error' | 'warning' | 'info';
 
 /** The severest of `tones`, if any. */
@@ -110,6 +111,7 @@ export class TTNav extends HTMLElement {
         a.themeModels === b.themeModels &&
         a.loadErrors === b.loadErrors &&
         a.paletteOverrides === b.paletteOverrides &&
+        a.pairEdits === b.pairEdits &&
         a.settings === b.settings,
     );
   }
@@ -124,6 +126,8 @@ export class TTNav extends HTMLElement {
     const errors = v.model.issues.filter((i) => i.severity === 'error').length;
     const warnings = v.model.issues.filter((i) => i.severity === 'warning').length;
     const included = has ? palettesOf(store.get()).palettes.filter((p) => p.included) : [];
+    const pairs = has ? pairsOf(store.get()).rows : [];
+    const failing = pairs.filter((r) => !r.pass);
     // Each count is led by the severest indication active in that view.
     const counts: Partial<Record<ViewId, { n: number; tone?: Tone }>> = has
       ? {
@@ -131,6 +135,9 @@ export class TTNav extends HTMLElement {
           themes: v.themes.length ? { n: v.themes.length, tone: severest(v.themeModels.flatMap((m) => m.model.issues.map((i) => i.severity))) } : undefined,
           issues: { n: errors + warnings, tone: severest(v.model.issues.map((i) => i.severity)) },
           colors: { n: included.length, tone: severest(included.flatMap((p) => p.flags.map((f) => f.severity))) },
+          semantic: pairs.length
+            ? { n: pairs.length, tone: failing.some((r) => r.pair.kind === 'text') ? 'error' : failing.length ? 'warning' : undefined }
+            : undefined,
           tokens: { n: v.model.tokens.size },
         }
       : {};

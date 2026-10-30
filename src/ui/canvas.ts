@@ -25,6 +25,44 @@ export function paintAll(root: ParentNode) {
   for (const c of root.querySelectorAll<HTMLCanvasElement & { paint?: () => void }>('canvas.swatch-canvas')) c.paint?.();
 }
 
+/**
+ * A foreground on its background: "Aa" for text, a ring and bar for UI parts
+ * (icons, borders). Painted like swatches, so the colors stay out of recordings.
+ */
+export function pairCanvas(fg: ColorInfo, bg: ColorInfo, kind: 'text' | 'ui', gamut: Gamut): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'swatch-canvas pair-canvas';
+  canvas.setAttribute('aria-hidden', 'true');
+  (canvas as HTMLCanvasElement & { paint?: () => void }).paint = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    const ctx = canvas.getContext('2d', { colorSpace: gamut === 'p3' ? 'display-p3' : 'srgb' });
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    if (bg.oklch.alpha < 1) checkerboard(ctx, w, h, 6 * dpr);
+    ctx.fillStyle = paintStyle(bg, gamut);
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = ctx.strokeStyle = paintStyle(fg, gamut);
+    if (kind === 'text') {
+      ctx.font = `600 ${Math.round(h * 0.5)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Aa', w / 2, h / 2 + h * 0.03);
+    } else {
+      const r = h * 0.22;
+      ctx.lineWidth = 2 * dpr;
+      ctx.beginPath();
+      ctx.arc(w * 0.33, h / 2, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillRect(w * 0.55, h / 2 - dpr, w * 0.25, 2 * dpr);
+    }
+  };
+  return canvas;
+}
+
 function paint(canvas: HTMLCanvasElement, info: ColorInfo, gamut: Gamut, mark: boolean) {
   const dpr = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));

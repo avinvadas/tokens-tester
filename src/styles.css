@@ -285,7 +285,7 @@ tt-nav { display: flex; flex-direction: column; gap: var(--space-4); }
 .view-head p { margin: 0; color: var(--muted); max-width: 70ch; }
 
 /* Section heads shared by every view: title left, controls right */
-.issues-head, .palettes-head, .themes-head {
+.issues-head, .palettes-head, .themes-head, .semantic-head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); flex-wrap: wrap;
 }
 
@@ -827,3 +827,39 @@ dialog.curve-editor .ok { font-size: var(--font-sm); margin: var(--space-1) 0; }
   box-shadow: var(--shadow-pop);
   pointer-events: none;
 }
+
+/* ============================================================
+   Semantic pairs
+   ============================================================ */
+
+tt-semantic { display: flex; flex-direction: column; gap: var(--space-3); }
+tt-semantic .meta { max-width: 80ch; }
+.view h2 .counts { display: inline-flex; align-items: center; gap: var(--space-2); }
+.badge.ok .icon { width: 12px; height: 12px; }
+table.pairs td { vertical-align: middle; }
+table.pairs .token-id { font-family: var(--mono); font-size: var(--font-sm); white-space: nowrap; }
+table.pairs .added { color: var(--subtle); font-family: var(--sans); }
+table.pairs select { font-size: var(--font-sm); }
+.pair-result { display: flex; align-items: center; gap: var(--space-2); }
+.pair-canvas { width: 48px; height: 30px; flex: none; border-radius: var(--radius-sm); box-shadow: 0 0 0 1px var(--border); }
+.pair-values { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; font-size: var(--font-sm); white-space: nowrap; }
+.pair-values > span { display: inline-flex; align-items: center; gap: 2px; }
+.pair-values small { color: var(--muted); }
+.pair-values .icon { width: 13px; height: 13px; }
+.pair-values .pass .icon { color: var(--ok); }
+.pair-values .miss.error { color: var(--error); }
+.pair-values .miss.warning { color: var(--warn); }
+.add-pair { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); max-width: 760px; }
+.add-pair .row { display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap; }
+.add-pair .field { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; font-size: var(--font-sm); color: var(--muted); }
+.add-pair input { font-family: var(--mono); }
+.pair-actions { white-space: nowrap; }
+.pair-actions .ghost.on { color: var(--accent); }
+table.pairs tr.open td { border-bottom: 0; }
+table.pairs tr.pair-detail td { background: var(--surface-2); padding: var(--space-3); }
+.alias-themes { display: flex; gap: var(--space-4) var(--space-6); flex-wrap: wrap; }
+.alias-theme { display: flex; flex-direction: column; gap: var(--space-2); }
+.alias-side { display: grid; grid-template-columns: 84px auto; align-items: center; gap: 2px var(--space-2); font-size: var(--font-sm); }
+.alias-side .label { color: var(--muted); }
+.alias-side small { grid-column: 2; }
+tr.pair-detail .hint { margin: var(--space-2) 0 0; }

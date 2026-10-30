@@ -45,6 +45,9 @@ const LEVELS: Record<ContrastTarget, Level[]> = {
   ],
 };
 
+/** A level by id, from any target. */
+export const levelById = (id: string): Level | undefined => Object.values(LEVELS).flat().find((l) => l.id === id);
+
 /** Levels for the selected targets, strictest first within each metric. */
 export function levelsFor(targets: readonly ContrastTarget[]): Level[] {
   const order: ContrastTarget[] = ['wcag-aaa', 'wcag-aa', 'apca'];
